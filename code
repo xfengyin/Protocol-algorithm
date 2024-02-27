@@ -1,158 +1,128 @@
-import numpy as np 
-import random
+import numpy as np
 import matplotlib.pyplot as plt
+from typing import List, Tuple
 
-def distance(v_A,v_B):
-    '''
-    判断两个传感器节点的一维的距离
-    v_A: A 
-    v_B: B
-    需要返回A，B节点的距离
-    '''
-    return np.sqrt(np.power((v_A[0]-v_B[0]),2) + np.power((v_A[1]-v_B[1]),2))
+def distance(v_A: List[float], v_B: List[float]) -> float:
+    """
+    计算两个传感器节点之间的欧氏距离。
+    
+    参数:
+    v_A: 第一个节点的坐标列表，形如[x, y]。
+    v_B: 第二个节点的坐标列表，形如[x, y]。
+    
+    返回:
+    两个节点之间的距离。
+    """
+    return np.sqrt((v_A[0] - v_B[0])**2 + (v_A[1] - v_B[1])**2)
 
-def node_point(N):
-    '''
-    传感器节点的一个集合，传感器节点的数目为N
-    nodes：节点的集合
-    sign_point: 标记节点是否被选择为簇首节点，并将其初始化为0
-    '''
-    nodes = []
-    sign_point = []
-    for i in range(0,N):
-        #在矩阵生成[x,y]的坐标
-        node = [np.random.random(),np.random.random()]
-        nodes.append(node)
-        sign_point.append(0) #初始化标记节点
+def generate_nodes(N: int) -> Tuple[List[List[float]], List[int]]:
+    """
+    生成传感器节点的集合，并初始化每个节点的簇首标记。
+    
+    参数:
+    N: 传感器节点的数量。
+    
+    返回:
+    nodes: 生成的节点列表，每个节点是一个坐标列表[x, y]。
+    sign_point: 每个节点是否被选为簇首的标记列表，初始化为0。
+    """
+    nodes = [[np.random.random(), np.random.random()] for _ in range(N)]
+    sign_point = [0] * N  # 初始化所有节点的簇首标记为0
+    
+    print('生成：', len(nodes), '个节点')
+    print('初始化标记列表为', sign_point)
+    return nodes, sign_point
 
-    print('生成：',len(nodes),'个节点')
-    print('初始化标记列表为',sign_point)
-    return nodes,sign_point
+def select_heads(r: int, nodes: List[List[float]], flags: List[int], P: float = 0.05) -> Tuple[List[List[float]], List[List[float]]]:
+    """
+    根据LEACH协议选择簇首节点。
+    
+    参数:
+    r: 当前的轮数。
+    nodes: 所有节点的列表。
+    flags: 节点的簇首标记列表。
+    P: 选取簇首的概率因子，默认为0.05。
+    
+    返回:
+    heads: 选取的簇首节点列表。
+    members: 非簇首的成员节点列表。
+    """
+    Tn = P / (1 - P * (r % (1 / P)))  # 计算阈值T(n)
+    print('阈值T(n)为：', Tn)
 
-def sel_heads(r,nodes,flags):
-    '''
-    依据leach协议来选取簇头节点
-    r ： 表示选取的轮数
-    nodes ： 节点的列表
-    P ：比例因子
-    '''
-    #使用leach协议的阈值T(n)
-    P = 0.05*(100/len(nodes))
-    Tn = P/(1-P*(r%(1/P)))
-    print('阈值T(n)为：',Tn)
-
-    #簇首列表
-    heads = []
-    #簇成员列表
-    members = []
-    # 本轮簇首数
-    n_nodes = 0
-
-    #对每个节点生成对应的随机数
-    rands = [np.random.random() for i in range(len(nodes))]
-    print('随机数为：',rands)
-
-    #遍历随机数列表，选取出簇首
-    for i in range(len(nodes)):
-        #若该节点没有当选为簇首节点
-        if flags[i] == 0:
-            #该节点对应的随机数小于阈值T(n)
-            if rands[i] <= Tn:
-                flags[i] = 1
-                heads.append(nodes[i])
-                n_nodes += 1
-                print(nodes[i],'被选为第',n_nodes,'个簇首')
-            else: 
-                members.append(nodes[i])
-        #该节点已被选择过
+    heads, members = [], []
+    rands = [np.random.random() for _ in range(len(nodes))]  # 为每个节点生成一个随机数
+    
+    for i, rand in enumerate(rands):
+        if flags[i] == 0 and rand <= Tn:  # 如果节点未被选为簇首且随机数小于阈值，则选为簇首
+            flags[i] = 1
+            heads.append(nodes[i])
         else:
             members.append(nodes[i])
-    print('簇首为：',len(heads),'个')
-    print('成员节点为：',len(members),'个')
-    return heads,members
+    
+    print('簇首为：', len(heads), '个')
+    print('成员节点为：', len(members), '个')
+    return heads, members
 
-def Clustering(nodes,flag, k=1):
-    '''
-    进行分簇操作
-    nodes: 节点列表
-    flag ：节点标记
-    k: 轮数
-    '''
-    #k 轮的集合
-    global head_clu
+def clustering(nodes: List[List[float]], flag: List[int], k: int = 1) -> List[List[List[float]]]:
+    """
+    对节点进行分簇操作。
+    
+    参数:
+    nodes: 所有节点的列表。
+    flag: 节点的簇首标记列表。
+    k: 进行分簇的轮数。
+    
+    返回:
+    iter_cluster: 每轮分簇的结果，是一个三维列表。
+    """
     iter_cluster = []
-    #迭代r轮
     for r in range(k):
-        #获取簇首以及成员节点的列表
-        heads,members = sel_heads(r,nodes,flag)
-        #分簇，簇的列表
-        cluster = [[]for i in range(len(heads))]
-        #把簇首作为首节点添加到聚类列表中
-        for i in range(len(heads)):
-            cluster[i].append(heads[i])
-
-        #簇分类：遍历节点
-        for n in range(len(members)):
-            #选取距离最小的节点
-            dist_min = 1
-
-            for i in range(len(heads)):
-                dis_heads = distance(members[n],heads[i])
-
-                #找到距离最小的簇首对应的heads下标i
-                if dis_heads < dist_min:
-                    dist_min = dis_heads
-                    head_clu = i
-            #0个簇首
-            if dist_min == 1:
-                print('此轮没有簇首！')
-                break
-
-            #添加到距离最小的簇首对应的聚类列表
-            cluster[head_clu].append(members[n])
-
-        #将簇首作为首节点添加到聚类列表
-        # for i in range(len(cluster)):
-        # print("第", i + 1, "类包含:", classes[i])
-
+        heads, members = select_heads(r, nodes, flag)
+        cluster = [[] for _ in range(len(heads))]
+        
+        for member in members:
+            dist_min, head_clu = min((distance(member, head), i) for i, head in enumerate(heads))
+            cluster[head_clu].append(member)
+        
+        for i, head in enumerate(heads):
+            cluster[i].insert(0, head)  # 将簇首插入到对应簇的开头
+        
         iter_cluster.append(cluster)
     return iter_cluster
+
+def show_clusters(clusters: List[List[List[float]]]):
+    """
+    显示分簇结果的图形。
     
-def show_plt(cluster):
-    '''
-    显示分簇图
-    cluster : [[类1...],[类2...]....]-->[簇首,成员,成员...]
-    '''
-    fig = plt.figure()
-    wsn = plt.gca()
-
-    wsn.set_title("WSN")
-    plt.xlabel("x")
-    plt.ylabel("y")
-
-    icon = ['o', '*', '.', 'x', '+', 's']
-    color = ['r','b','g','c','y','m']
-
-    for i in range(len(cluster)):
-        centor = cluster[i][0]
-        for point in cluster[i]:
-            wsn.plot([centor[0], point[0]], [centor[1], point[1]], c=color[i % 6], marker=icon[i % 5], alpha=0.4) 
-
+    参数:
+    clusters: 分簇的结果，是一个三维列表。
+    """
+    fig, ax = plt.subplots()
+    ax.set_title("WSN Clustering")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    
+    colors = ['r', 'b', 'g', 'c', 'y', 'm']
+    markers = ['o', '*', '.', 'x', '+', 's']
+    
+    for i, cluster in enumerate(clusters):
+        centor = cluster[0]
+        for point in cluster:
+            ax.plot([centor[0], point[0]], [centor[1], point[1]], c=colors[i % len(colors)], marker=markers[i % len(markers)], alpha=0.4)
+    
     plt.show()
 
 def run():
-    '''
-    1.输入节点的个数N
-    2.node_point(N):生成N个节点的列表
-    3.cluster(nodes,flag,k=10):进行k轮簇的分类，flag已标记的节点不再成为簇首
-    4.plt.show(cluster):迭代每次聚类结果，显示连线图
-    '''
+    """
+    主函数，用于运行整个分簇过程并显示结果。
+    """
     N = int(input('请输入节点的个数：\n'))
-    nodes,flag = node_point(N)
-    iter_cluster = Clustering(nodes,flag, k=20)
-
+    nodes, flag = generate_nodes(N)
+    iter_cluster = clustering(nodes, flag, k=20)
+    
     for cluster in iter_cluster:
-        show_plt(cluster)
+        show_clusters(cluster)
 
 if __name__ == '__main__':
     run()
