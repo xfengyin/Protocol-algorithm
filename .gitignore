@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+.env
+dist/
+build/
+*.egg-info/
+coverage.xml
+.pytest_cache/
+.DS_Store
+*.sqlite3
+*.db
+# Jupyter
+.ipynb_checkpoints/
+# VSCode
+.vscode/
+# Poetry
+poetry.lock
