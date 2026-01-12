@@ -1,0 +1,7 @@
+N: 100
+P: 0.05
+rounds: 20
+seed: 42
+field_size: [1.0, 1.0]
+ml_head_selector_path: null
+energy_model: default
