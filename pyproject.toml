@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "protocol-algorithm"
+version = "0.1.0"
+description = "Modular LEACH simulator with FastAPI + uvicorn and packaging via Poetry"
+authors = ["xfengyin <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+fastapi = "^0.95.0"
+uvicorn = {extras = ["standard"], version = "^0.22.0"}
+numpy = "^1.24"
+plotly = "^5.16"
+scikit-learn = "^1.3"
+pyyaml = "^6.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4"
+
+[tool.poetry.scripts]
+start = "uvicorn app.main:app --reload"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.include]
+# include config and data files in package
+files = ["config/*", "data/*"]
