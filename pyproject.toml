@@ -1,0 +1,16 @@
+[project]
+name = "protocol-algorithm"
+version = "0.1.0"
+description = "LEACH协议算法实现与AI优化"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "scikit-learn"
+]
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
