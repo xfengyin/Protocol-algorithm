@@ -1,0 +1,32 @@
+[workspace]
+members = [
+    "core",
+    "python",
+    "web"
+]
+resolver = "2"
+
+[workspace.package]
+version = "2.0.0"
+edition = "2021"
+authors = ["Kk <xfengyin@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/xfengyin/Protocol-algorithm"
+description = "Wireless Sensor Network Protocol Algorithm Simulation Platform"
+
+[workspace.dependencies]
+# Core
+ndarray = "0.15"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rayon = "1.8"
+
+# PyO3
+pyo3 = { version = "0.20", features = ["extension-module"] }
+
+# Web
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+tokio-tungstenite = "0.21"

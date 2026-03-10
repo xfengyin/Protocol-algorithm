@@ -1,0 +1,17 @@
+[package]
+name = "protocol-algo-python"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Python bindings for Protocol-algorithm"
+
+[lib]
+name = "protocol_algo"
+crate-type = ["cdylib"]
+
+[dependencies]
+protocol-algo-core = { path = "../core" }
+pyo3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

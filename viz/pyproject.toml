@@ -1,0 +1,44 @@
+[project]
+name = "protocol-algo-viz"
+version = "2.0.0"
+description = "Visualization scripts for Protocol-algorithm"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Kk", email = "xfengyin@gmail.com" }
+]
+dependencies = [
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "plotly>=5.18",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-benchmark",
+    "black",
+    "ruff",
+]
+animation = [
+    "manim>=0.18",
+]
+
+[project.scripts]
+protocol-viz = "viz.demo_viz:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
