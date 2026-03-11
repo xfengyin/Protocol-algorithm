@@ -90,7 +90,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd web/frontend
-          npm ci
+          npm install
       
       - name: Build
         run: |
