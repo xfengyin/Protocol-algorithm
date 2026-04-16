@@ -1,0 +1,54 @@
+# Network Configuration
+network:
+  n_nodes: 100
+  area: [0, 100, 0, 100]  # x_min, x_max, y_min, y_max
+  base_station_pos: [50, 50]
+  initial_energy: 0.5  # Joules
+
+# Energy Model Parameters (First Order Radio Model)
+energy_model:
+  E_elec: 50e-9      # 50 nJ/bit - circuit energy
+  epsilon_fs: 10e-12  # 10 pJ/bit/m^2 - free space
+  epsilon_mp: 0.0013e-12  # 0.0013 pJ/bit/m^4 - multi-path
+  d_threshold: 87.0   # distance threshold (m)
+  E_da: 5e-9         # 5 nJ/bit - data aggregation
+
+# Simulation Parameters
+simulation:
+  rounds: 5000
+  data_size: 4000  # bits per message
+  seed: 42
+
+# Protocol Configuration
+protocol: leach  # leach, leach-c, leach-ee, leach-m, leach_ai
+
+# LEACH Parameters
+leach:
+  p: 0.05  # probability of being cluster head
+
+# LEACH-C Parameters
+leach_c:
+  p: 0.05
+
+# LEACH-EE Parameters
+leach_ee:
+  p: 0.05
+  energy_threshold: 0.3
+  density_weight: 0.3
+
+# LEACH-M Parameters
+leach_m:
+  p: 0.05
+  mobility_speed_range: [0, 1.0]
+
+# AI Configuration (for leach_ai)
+ai:
+  model_type: sklearn  # sklearn or pytorch
+  model_path: ./models/ai_selector.pkl
+  n_estimators: 100
+
+# Output Configuration
+output:
+  directory: ./results
+  save_plots: true
+  save_animation: false

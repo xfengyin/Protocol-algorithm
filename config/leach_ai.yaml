@@ -1,0 +1,39 @@
+# LEACH-AI Configuration
+# AI-enhanced cluster head selection
+
+network:
+  n_nodes: 100
+  area: [0, 100, 0, 100]
+  base_station_pos: [50, 50]
+  initial_energy: 0.5
+
+energy_model:
+  E_elec: 50e-9
+  epsilon_fs: 10e-12
+  epsilon_mp: 0.0013e-12
+  d_threshold: 87.0
+  E_da: 5e-9
+
+simulation:
+  rounds: 5000
+  data_size: 4000
+  seed: 42
+
+protocol: leach_ai
+
+ai:
+  model_type: sklearn  # sklearn or pytorch
+  model_path: ./models/ai_selector.pkl
+  n_estimators: 100
+  # Training parameters
+  training:
+    n_rounds: 500  # rounds for data generation
+    test_size: 0.2
+    positive_ratio: 0.1  # CH / non-CH ratio
+
+leach:
+  p: 0.05
+
+output:
+  directory: ./results/leach_ai
+  save_plots: true
