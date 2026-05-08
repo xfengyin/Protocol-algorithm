@@ -1,272 +1,405 @@
-"""仿真引擎"""
+"""并行仿真引擎"""
 
 from __future__ import annotations
 
+import os
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from typing import List, Dict, Any, Optional, Callable, Tuple
+from dataclasses import dataclass
+import itertools
 import numpy as np
-from typing import List, Dict, Any, Callable, Optional
-from dataclasses import dataclass, field
-from enum import Enum
 
-from ..models.network import Network, NetworkMetrics
-from ..leach.variants import LEACHRegistry
+from ..models.network import Network
+from ..energy.radio_model import FirstOrderRadioModel
+from ..leach.classic import ClassicLEACH
 
 
 @dataclass
-class SimulationEvent:
-    """仿真事件"""
-    round_number: int
-    event_type: str
-    data: Dict[str, Any] = field(default_factory=dict)
+class SimulationConfig:
+    """仿真配置"""
+    n_nodes: int = 100
+    area: Tuple[float, float, float, float] = (0, 100, 0, 100)
+    base_station_pos: Tuple[float, float] = (50, 50)
+    initial_energy: float = 0.5
+    rounds: int = 1000
+    protocol_name: str = "leach"
+    seed: Optional[int] = None
 
 
-class SimulationEngine:
-    """
-    事件驱动仿真引擎
+@dataclass
+class SimulationResult:
+    """仿真结果"""
+    config: SimulationConfig
+    run_id: int
+    results: Dict[str, Any]
+    execution_time: float
+
+
+class ParallelSimulationEngine:
+    """并行仿真引擎"""
     
-    支持:
-    - 事件队列
-    - 回调钩子
-    - 并行实验
-    """
-    
-    def __init__(self, network: Network):
-        """
-        初始化
-        
-        Args:
-            network: 网络对象
-        """
-        self.network = network
-        self.event_queue: List[SimulationEvent] = []
-        self.callbacks: Dict[str, List[Callable]] = {
-            'on_round_start': [],
-            'on_round_end': [],
-            'on_node_dead': [],
-            'on_cluster_head_selected': [],
-            'on_simulation_end': [],
-        }
-        
-        self.running = False
-    
-    def register_callback(self, event_type: str, callback: Callable):
-        """
-        注册回调
-        
-        Args:
-            event_type: 事件类型
-            callback: 回调函数
-        """
-        if event_type in self.callbacks:
-            self.callbacks[event_type].append(callback)
-    
-    def emit_event(self, event: SimulationEvent):
-        """触发事件"""
-        self.event_queue.append(event)
-        
-        if event.event_type in self.callbacks:
-            for callback in self.callbacks[event.event_type]:
-                callback(event)
-    
-    def simulate_round(
+    def __init__(
         self,
-        protocol_name: str = "leach",
-        **kwargs
-    ) -> NetworkMetrics:
+        n_workers: Optional[int] = None,
+        use_threads: bool = False
+    ):
         """
-        模拟一轮
+        初始化并行仿真引擎
         
         Args:
-            protocol_name: 协议名称
-            **kwargs: 协议参数
-            
-        Returns:
-            网络指标
+            n_workers: 工作进程数，默认为 CPU 核心数
+            use_threads: 是否使用线程（而非进程）
         """
-        # 触发开始事件
-        self.emit_event(SimulationEvent(
-            round_number=self.network.current_round,
-            event_type='on_round_start',
-            data={'alive_nodes': self.network.n_alive}
-        ))
-        
-        # 执行仿真
-        metrics = self.network.simulate_round(protocol_name, **kwargs)
-        
-        # 检查死亡节点
-        for node in self.network.dead_nodes:
-            if node.round_dead is None:
-                node.round_dead = self.network.current_round
-                self.emit_event(SimulationEvent(
-                    round_number=self.network.current_round,
-                    event_type='on_node_dead',
-                    data={'node_id': node.id}
-                ))
-        
-        # 触发结束事件
-        self.emit_event(SimulationEvent(
-            round_number=self.network.current_round,
-            event_type='on_round_end',
-            data={'metrics': metrics}
-        ))
-        
-        return metrics
+        self.n_workers = n_workers or max(1, mp.cpu_count() - 1)
+        self.use_threads = use_threads
+        self._executor_class = ThreadPoolExecutor if use_threads else ProcessPoolExecutor
     
-    def simulate(
+    def run_parameter_sweep(
         self,
-        rounds: int,
-        protocol_name: str = "leach",
-        stop_condition: Optional[Callable] = None,
-        progress_callback: Optional[Callable] = None,
-        **kwargs
+        base_config: SimulationConfig,
+        param_grid: Dict[str, List[Any]],
+        n_runs: int = 5,
+        aggregate: bool = True
     ) -> Dict[str, Any]:
         """
-        运行仿真
+        运行参数扫描实验
         
         Args:
-            rounds: 最大轮数
-            protocol_name: 协议名称
-            stop_condition: 停止条件
-            progress_callback: 进度回调
-            **kwargs: 协议参数
-            
-        Returns:
-            仿真结果
-        """
-        self.running = True
-        results = {
-            'rounds': [],
-            'alive_nodes': [],
-            'metrics': [],
-        }
-        
-        try:
-            for r in range(rounds):
-                if not self.running:
-                    break
-                
-                metrics = self.simulate_round(protocol_name, **kwargs)
-                
-                results['rounds'].append(r)
-                results['alive_nodes'].append(metrics.alive_nodes)
-                results['metrics'].append(metrics)
-                
-                if progress_callback:
-                    progress_callback(r, metrics)
-                
-                if stop_condition and stop_condition(self.network, r):
-                    break
-                    
-        finally:
-            self.running = False
-            self.emit_event(SimulationEvent(
-                round_number=r,
-                event_type='on_simulation_end',
-                data={'total_rounds': len(results['rounds'])}
-            ))
-        
-        return results
-    
-    def stop(self):
-        """停止仿真"""
-        self.running = False
-
-
-class ParallelExperimentRunner:
-    """并行实验运行器"""
-    
-    def __init__(self, n_workers: int = 4):
-        """
-        初始化
-        
-        Args:
-            n_workers: 并行工作进程数
-        """
-        self.n_workers = n_workers
-    
-    def run_single(
-        self,
-        config: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        运行单次实验
-        
-        Args:
-            config: 实验配置
+            base_config: 基础配置
+            param_grid: 参数网格，如 {'n_nodes': [50, 100, 200]}
+            n_runs: 每个参数组合的运行次数
+            aggregate: 是否聚合结果
             
         Returns:
             实验结果
         """
-        from ..models.network import Network
-        from ..energy.radio_model import FirstOrderRadioModel
+        tasks = []
+        param_names = list(param_grid.keys())
+        param_values = list(param_grid.values())
         
-        # 创建网络
-        energy_model = FirstOrderRadioModel(**config.get('energy_model', {}))
-        network = Network(
-            n_nodes=config['n_nodes'],
-            area=config['area'],
-            base_station_pos=config['base_station_pos'],
-            energy_model=energy_model,
-            initial_energy=config.get('initial_energy', 0.5),
-            seed=config.get('seed')
-        )
+        for params in itertools.product(*param_values):
+            config_dict = {
+                'n_nodes': base_config.n_nodes,
+                'area': base_config.area,
+                'base_station_pos': base_config.base_station_pos,
+                'initial_energy': base_config.initial_energy,
+                'rounds': base_config.rounds,
+                'protocol_name': base_config.protocol_name,
+                'seed': base_config.seed,
+            }
+            
+            for name, value in zip(param_names, params):
+                config_dict[name] = value
+            
+            for run_id in range(n_runs):
+                config = SimulationConfig(**config_dict)
+                if config.seed is not None:
+                    config.seed = config.seed + run_id
+                tasks.append((config, run_id))
         
-        # 创建引擎
-        engine = SimulationEngine(network)
+        all_results = []
         
-        # 运行
-        results = engine.simulate(
-            rounds=config['rounds'],
-            protocol_name=config['protocol']
-        )
+        with self._executor_class(max_workers=self.n_workers) as executor:
+            futures = {
+                executor.submit(
+                    _run_single_simulation,
+                    config.n_nodes,
+                    config.area,
+                    config.base_station_pos,
+                    config.initial_energy,
+                    config.rounds,
+                    config.protocol_name,
+                    config.seed,
+                    run_id
+                ): (config, run_id)
+                for config, run_id in tasks
+            }
+            
+            for future in as_completed(futures):
+                config, run_id = futures[future]
+                try:
+                    result = future.result()
+                    all_results.append(result)
+                except Exception as e:
+                    print(f"Error running simulation: {e}")
+        
+        if aggregate:
+            return self._aggregate_results(all_results, param_names, param_values)
         
         return {
-            'config': config,
-            'results': results,
-            'summary': self._summarize(results)
+            'individual_results': [r.__dict__ for r in all_results],
+            'param_grid': param_grid,
+            'n_runs': n_runs,
         }
     
-    def run_multiple(
+    def run_parallel_experiments(
         self,
-        configs: List[Dict[str, Any]],
+        configs: List[SimulationConfig],
         show_progress: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> List[SimulationResult]:
         """
-        运行多次实验
+        运行多个配置并行实验
         
         Args:
-            configs: 实验配置列表
+            configs: 配置列表
             show_progress: 是否显示进度
             
         Returns:
-            实验结果列表
+            结果列表
         """
         results = []
         
-        for i, config in enumerate(configs):
-            if show_progress:
-                print(f"Running experiment {i+1}/{len(configs)}: {config['protocol']}")
+        with self._executor_class(max_workers=self.n_workers) as executor:
+            futures = {}
             
-            result = self.run_single(config)
-            results.append(result)
+            for i, config in enumerate(configs):
+                future = executor.submit(
+                    _run_single_simulation,
+                    config.n_nodes,
+                    config.area,
+                    config.base_station_pos,
+                    config.initial_energy,
+                    config.rounds,
+                    config.protocol_name,
+                    config.seed,
+                    i
+                )
+                futures[future] = (config, i)
+            
+            for future in as_completed(futures):
+                config, run_id = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    print(f"Error: {e}")
         
         return results
     
-    def _summarize(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        """汇总结果"""
-        alive_history = np.array(results['alive_nodes'])
+    def _aggregate_results(
+        self,
+        results: List[SimulationResult],
+        param_names: List[str],
+        param_values: Tuple[Tuple[Any, ...], ...]
+    ) -> Dict[str, Any]:
+        """
+        聚合结果
         
-        first_dead = np.argmax(alive_history < len(alive_history))
-        if alive_history[first_dead] == len(alive_history):
-            first_dead = len(alive_history)
-        
-        half_dead = np.argmax(alive_history <= len(alive_history) / 2)
-        if alive_history[half_dead] > len(alive_history) / 2:
-            half_dead = len(alive_history)
-        
-        return {
-            'total_rounds': len(alive_history),
-            'first_dead_round': int(first_dead),
-            'half_dead_round': int(half_dead),
-            'final_alive': int(alive_history[-1]),
-            'energy_stability': float(np.std([m.total_energy for m in results['metrics']])),
+        Args:
+            results: 所有结果
+            param_names: 参数名
+            param_values: 参数值
+            
+        Returns:
+            聚合后的结果
+        """
+        aggregated = {
+            'summary': {},
+            'by_params': {},
+            'raw_results': [r.__dict__ for r in results],
         }
+        
+        for params in itertools.product(*param_values):
+            param_key = tuple(zip(param_names, params))
+            param_dict = dict(param_key)
+            key_str = str(param_key)
+            
+            matching = [
+                r for r in results
+                if all(getattr(r.config, name, None) == value 
+                       for name, value in param_dict.items())
+            ]
+            
+            if matching:
+                lifetimes = [r.results.get('network_lifetime', 0) for r in matching]
+                half_lifetimes = [r.results.get('half_network_lifetime', 0) for r in matching]
+                
+                aggregated['by_params'][key_str] = {
+                    'config': param_dict,
+                    'n_runs': len(matching),
+                    'network_lifetime': {
+                        'mean': np.mean(lifetimes),
+                        'std': np.std(lifetimes),
+                        'min': np.min(lifetimes),
+                        'max': np.max(lifetimes),
+                    },
+                    'half_network_lifetime': {
+                        'mean': np.mean(half_lifetimes),
+                        'std': np.std(half_lifetimes),
+                    },
+                    'avg_energy_consumption': np.mean([
+                        r.results.get('total_energy', 0) for r in matching
+                    ]),
+                }
+        
+        return aggregated
+
+
+def _run_single_simulation(
+    n_nodes: int,
+    area: Tuple[float, float, float, float],
+    base_station_pos: Tuple[float, float],
+    initial_energy: float,
+    rounds: int,
+    protocol_name: str,
+    seed: Optional[int],
+    run_id: int
+) -> SimulationResult:
+    """
+    运行单次仿真（独立进程函数）
+    
+    Args:
+        n_nodes: 节点数
+        area: 区域
+        base_station_pos: 基站位置
+        initial_energy: 初始能量
+        rounds: 轮数
+        protocol_name: 协议名
+        seed: 随机种子
+        run_id: 运行 ID
+        
+    Returns:
+        仿真结果
+    """
+    import time
+    
+    config = SimulationConfig(
+        n_nodes=n_nodes,
+        area=area,
+        base_station_pos=base_station_pos,
+        initial_energy=initial_energy,
+        rounds=rounds,
+        protocol_name=protocol_name,
+        seed=seed
+    )
+    
+    start_time = time.time()
+    
+    energy_model = FirstOrderRadioModel()
+    
+    network = Network(
+        n_nodes=n_nodes,
+        area=area,
+        base_station_pos=base_station_pos,
+        energy_model=energy_model,
+        initial_energy=initial_energy,
+        seed=seed
+    )
+    
+    results = network.simulate_network(
+        rounds=rounds,
+        protocol_name=protocol_name
+    )
+    
+    execution_time = time.time() - start_time
+    
+    return SimulationResult(
+        config=config,
+        run_id=run_id,
+        results=results,
+        execution_time=execution_time
+    )
+
+
+class BatchSimulator:
+    """批量仿真器"""
+    
+    def __init__(self, engine: Optional[ParallelSimulationEngine] = None):
+        """初始化批量仿真器"""
+        self.engine = engine or ParallelSimulationEngine()
+        self._results_cache: Dict[str, SimulationResult] = {}
+    
+    def compare_protocols(
+        self,
+        n_nodes: int = 100,
+        area: Tuple[float, float, float, float] = (0, 100, 0, 100),
+        rounds: int = 1000,
+        protocols: Optional[List[str]] = None,
+        n_runs: int = 10
+    ) -> Dict[str, Any]:
+        """
+        对比不同协议
+        
+        Args:
+            n_nodes: 节点数
+            area: 区域
+            rounds: 轮数
+            protocols: 协议列表
+            n_runs: 每个协议运行次数
+            
+        Returns:
+            对比结果
+        """
+        protocols = protocols or ['leach', 'leach_c', 'leach_ee', 'leach_m']
+        
+        comparison = {
+            'protocols': {},
+            'summary': {}
+        }
+        
+        for protocol in protocols:
+            config = SimulationConfig(
+                n_nodes=n_nodes,
+                area=area,
+                rounds=rounds,
+                protocol_name=protocol,
+                seed=42
+            )
+            
+            results = self.engine.run_parameter_sweep(
+                base_config=config,
+                param_grid={},
+                n_runs=n_runs,
+                aggregate=True
+            )
+            
+            comparison['protocols'][protocol] = results
+        
+        all_lifetimes = {
+            p: comparison['protocols'][p]['summary'].get('network_lifetime', 0)
+            for p in protocols
+        }
+        
+        comparison['summary'] = {
+            'best_protocol': max(all_lifetimes, key=all_lifetimes.get),
+            'lifetimes': all_lifetimes,
+        }
+        
+        return comparison
+    
+    def save_results(
+        self,
+        results: Dict[str, Any],
+        output_path: str
+    ) -> None:
+        """
+        保存结果到文件
+        
+        Args:
+            results: 结果字典
+            output_path: 输出路径
+        """
+        import json
+        from pathlib import Path
+        
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+    
+    def load_results(self, input_path: str) -> Dict[str, Any]:
+        """
+        从文件加载结果
+        
+        Args:
+            input_path: 输入路径
+            
+        Returns:
+            结果字典
+        """
+        import json
+        
+        with open(input_path, 'r') as f:
+            return json.load(f)

@@ -52,12 +52,14 @@ class Node:
         """是否为普通节点"""
         return self.role == NodeRole.NORMAL
     
-    def distance_to(self, other: Node | Tuple[float, float]) -> float:
+    def distance_to(self, other) -> float:
         """计算到另一个节点或坐标的距离"""
-        if isinstance(other, Node):
+        if hasattr(other, 'x') and hasattr(other, 'y'):
             ox, oy = other.x, other.y
-        else:
+        elif isinstance(other, tuple) and len(other) == 2:
             ox, oy = other
+        else:
+            raise TypeError(f"Cannot compute distance to {type(other)}")
         
         return np.sqrt((self.x - ox) ** 2 + (self.y - oy) ** 2)
     

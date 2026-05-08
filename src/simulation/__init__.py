@@ -1,9 +1,15 @@
 """仿真模块"""
 
-from .engine import SimulationEngine, ParallelExperimentRunner, SimulationEvent
+from .engine import (
+    ParallelSimulationEngine,
+    BatchSimulator,
+    SimulationConfig,
+    SimulationResult,
+)
 
 __all__ = [
-    "SimulationEngine",
-    "ParallelExperimentRunner",
-    "SimulationEvent",
+    "ParallelSimulationEngine",
+    "BatchSimulator",
+    "SimulationConfig",
+    "SimulationResult",
 ]

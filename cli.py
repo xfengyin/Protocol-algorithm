@@ -8,7 +8,6 @@ import yaml
 
 from src.models.network import Network
 from src.energy.radio_model import FirstOrderRadioModel
-from src.simulation.engine import SimulationEngine
 from src.visualization.metrics_plots import MetricsPlotter
 
 
@@ -43,7 +42,7 @@ def main():
         '-p',
         type=str,
         default='leach',
-        choices=['leach', 'leach-c', 'leach-ee', 'leach-m', 'leach_ai'],
+        choices=['leach', 'leach_c', 'leach_ee', 'leach_m'],
         help='Protocol name'
     )
     
@@ -78,7 +77,6 @@ def main():
     
     args = parser.parse_args()
     
-    # 加载配置或使用默认值
     if args.config:
         config = load_config(args.config)
     else:
@@ -104,7 +102,6 @@ def main():
     print(f"Rounds: {config['simulation']['rounds']}")
     print()
     
-    # 创建网络
     network_config = config['network']
     energy_model = FirstOrderRadioModel(**config.get('energy_model', {}))
     
@@ -117,12 +114,8 @@ def main():
         seed=args.seed or config.get('seed')
     )
     
-    # 创建仿真引擎
-    engine = SimulationEngine(network)
-    
-    # 运行仿真
     print("Running simulation...")
-    results = engine.simulate(
+    results = network.simulate_network(
         rounds=config['simulation']['rounds'],
         protocol_name=config.get('protocol', args.protocol)
     )
@@ -137,13 +130,11 @@ def main():
     print(f"Final Alive: {results['alive_nodes'][-1]}")
     print()
     
-    # 保存结果
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     
     import json
     with open(output_dir / 'results.json', 'w') as f:
-        # 转换结果
         results_to_save = {
             'rounds': results['rounds'],
             'alive_nodes': results['alive_nodes'],
@@ -158,7 +149,6 @@ def main():
     
     print(f"Results saved to {output_dir / 'results.json'}")
     
-    # 绘图
     if not args.no_plot:
         print("Generating plots...")
         plotter = MetricsPlotter()

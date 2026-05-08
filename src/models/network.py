@@ -3,14 +3,30 @@
 from __future__ import annotations
 
 import numpy as np
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Protocol, runtime_checkable
 from dataclasses import dataclass, field
+from scipy.spatial import cKDTree
 
 from .node import Node, NodeRole
 from .base_station import BaseStation
 from .cluster_head import ClusterHead
 from ..energy.radio_model import FirstOrderRadioModel
 from ..leach.variants import LEACHRegistry
+
+
+@runtime_checkable
+class EnergyModel(Protocol):
+    """能量模型协议"""
+    
+    def calc_transmit_energy(self, distance: float, message_size: int) -> float:
+        ...
+    
+    def calc_receive_energy(self, message_size: int) -> float:
+        ...
+    
+    @property
+    def E_da(self) -> float:
+        ...
 
 
 @dataclass
@@ -24,6 +40,19 @@ class NetworkMetrics:
     average_energy: float
     energy_std: float
     cluster_size_distribution: Dict[int, int] = field(default_factory=dict)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典用于序列化"""
+        return {
+            'round': self.round_number,
+            'alive': self.alive_nodes,
+            'dead': self.dead_nodes,
+            'cluster_heads': self.n_cluster_heads,
+            'total_energy': self.total_energy,
+            'avg_energy': self.average_energy,
+            'energy_std': self.energy_std,
+            'cluster_distribution': self.cluster_size_distribution
+        }
 
 
 class Network:
@@ -34,7 +63,7 @@ class Network:
         n_nodes: int,
         area: Tuple[float, float, float, float],
         base_station_pos: Tuple[float, float],
-        energy_model: Optional[FirstOrderRadioModel] = None,
+        energy_model: Optional[EnergyModel] = None,
         initial_energy: float = 0.5,
         seed: Optional[int] = None,
     ):
@@ -57,21 +86,18 @@ class Network:
         if seed is not None:
             np.random.seed(seed)
         
-        # 创建基站
         self.base_station = BaseStation(*base_station_pos)
-        
-        # 创建节点
         self.nodes = self._initialize_nodes()
         
-        # 簇头记录
         self.cluster_heads: List[ClusterHead] = []
         self.current_round = 0
-        
-        # 指标历史
         self.metrics_history: List[NetworkMetrics] = []
         
-        # 算法注册表
         self._protocol_registry = LEACHRegistry()
+        
+        self._spatial_index: Optional[cKDTree] = None
+        self._index_valid = False
+        self._alive_node_indices: List[int] = []
     
     def _initialize_nodes(self) -> List[Node]:
         """初始化节点"""
@@ -91,6 +117,20 @@ class Network:
             nodes.append(node)
         
         return nodes
+    
+    def _build_spatial_index(self) -> None:
+        """构建空间索引"""
+        if not self._index_valid and self.alive_nodes:
+            positions = np.array([(n.x, n.y) for n in self.alive_nodes])
+            self._spatial_index = cKDTree(positions)
+            self._alive_node_indices = [i for i, n in enumerate(self.nodes) if n.is_alive]
+            self._index_valid = True
+    
+    def _invalidate_index(self) -> None:
+        """使空间索引失效"""
+        self._index_valid = False
+        self._spatial_index = None
+        self._alive_node_indices = []
     
     @property
     def alive_nodes(self) -> List[Node]:
@@ -113,13 +153,61 @@ class Network:
         return sum(n.energy for n in self.nodes)
     
     def get_neighbors(self, node: Node, threshold_distance: float) -> List[Node]:
-        """获取邻居节点"""
+        """
+        获取邻居节点（使用 KD-Tree 加速）
+        
+        Args:
+            node: 目标节点
+            threshold_distance: 距离阈值
+            
+        Returns:
+            邻居节点列表
+        """
+        self._build_spatial_index()
+        
+        if self._spatial_index is None:
+            return []
+        
+        idx_list = self._spatial_index.query_ball_point(
+            (node.x, node.y), threshold_distance
+        )
+        
         return [
-            n for n in self.alive_nodes
-            if n.id != node.id and node.distance_to(n) <= threshold_distance
+            self.alive_nodes[i] for i in idx_list
+            if self.alive_nodes[i].id != node.id
         ]
     
-    def reset_nodes(self):
+    def get_neighbors_vectorized(
+        self,
+        threshold_distance: float
+    ) -> Dict[int, List[int]]:
+        """
+        批量获取所有节点的邻居（向量化版本）
+        
+        Args:
+            threshold_distance: 距离阈值
+            
+        Returns:
+            节点索引到邻居索引列表的映射
+        """
+        self._build_spatial_index()
+        
+        if self._spatial_index is None or not self.alive_nodes:
+            return {}
+        
+        positions = np.array([(n.x, n.y) for n in self.alive_nodes])
+        distances = self._spatial_index.cKDTree__repr__(positions)
+        
+        result = {}
+        for i, node in enumerate(self.alive_nodes):
+            neighbor_indices = self._spatial_index.query_ball_point(
+                positions[i], threshold_distance
+            )
+            result[node.id] = [self.alive_nodes[j].id for j in neighbor_indices if j != i]
+        
+        return result
+    
+    def reset_nodes(self) -> None:
         """重置所有节点角色"""
         for node in self.nodes:
             node.reset_role()
@@ -136,22 +224,19 @@ class Network:
             选出的簇头列表
         """
         self.reset_nodes()
+        self._invalidate_index()
         
-        # 获取协议
         protocol = self._protocol_registry.get(protocol_name)
-        
-        # 选举簇头
         cluster_heads = protocol.select_cluster_heads(self, **kwargs)
         
-        # 记录簇头
         self.cluster_heads = cluster_heads
         self.base_station.record_round([ch.node.id for ch in cluster_heads])
         
         return cluster_heads
     
-    def steady_phase(self, data_size: int = 4000):
+    def steady_phase(self, data_size: int = 4000) -> None:
         """
-        稳定阶段：数据传输
+        稳定阶段：数据传输（向量化优化）
         
         Args:
             data_size: 数据包大小 (bits)
@@ -159,10 +244,71 @@ class Network:
         for ch in self.cluster_heads:
             ch.clear_members()
         
-        # 普通节点加入簇
+        if not self.cluster_heads or not self.alive_nodes:
+            return
+        
+        ch_positions = np.array([(ch.node.x, ch.node.y) for ch in self.cluster_heads])
+        ch_ids = np.array([ch.cluster_id for ch in self.cluster_heads])
+        
+        alive_positions = np.array([(n.x, n.y) for n in self.alive_nodes])
+        alive_nodes_list = self.alive_nodes
+        
+        distances = np.linalg.norm(
+            alive_positions[:, np.newaxis] - ch_positions[np.newaxis, :],
+            axis=2
+        )
+        
+        nearest_ch_indices = np.argmin(distances, axis=1)
+        min_distances = distances[np.arange(len(distances)), nearest_ch_indices]
+        
+        ch_member_counts = {}
+        
+        for i, node in enumerate(alive_nodes_list):
+            nearest_idx = nearest_ch_indices[i]
+            
+            if node.is_cluster_head:
+                continue
+            
+            ch = self.cluster_heads[nearest_idx]
+            node.join_cluster(ch.node, ch_ids[nearest_idx])
+            ch.add_member(node)
+            
+            tx_energy = self.energy_model.calc_transmit_energy(
+                min_distances[i], data_size
+            )
+            node.consume_energy(tx_energy)
+            
+            ch_id = ch_ids[nearest_idx]
+            ch_member_counts[ch_id] = ch_member_counts.get(ch_id, 0) + 1
+        
+        for ch in self.cluster_heads:
+            if not ch.node.is_alive:
+                continue
+            
+            total_bits = data_size * ch.n_members
+            
+            rx_energy = self.energy_model.calc_receive_energy(total_bits)
+            ch.node.consume_energy(rx_energy)
+            
+            fusion_energy = self.energy_model.E_da * total_bits
+            ch.node.consume_energy(fusion_energy)
+            
+            dist_to_bs = ch.node.distance_to(self.base_station)
+            tx_to_bs = self.energy_model.calc_transmit_energy(dist_to_bs, total_bits)
+            ch.node.consume_energy(tx_to_bs)
+    
+    def steady_phase_original(self, data_size: int = 4000) -> None:
+        """
+        原始稳定阶段实现（保留用于对比）
+        
+        Args:
+            data_size: 数据包大小 (bits)
+        """
+        for ch in self.cluster_heads:
+            ch.clear_members()
+        
         for node in self.alive_nodes:
             if not node.is_cluster_head:
-                # 找到最近的簇头
                 min_dist = float('inf')
                 nearest_ch = None
                 
@@ -176,27 +322,22 @@ class Network:
                     node.join_cluster(nearest_ch.node, nearest_ch.cluster_id)
                     nearest_ch.add_member(node)
                     
-                    # 能耗计算
                     tx_energy = self.energy_model.calc_transmit_energy(
                         min_dist, data_size
                     )
                     node.consume_energy(tx_energy)
         
-        # 簇头聚合并发送给基站
         for ch in self.cluster_heads:
             if not ch.node.is_alive:
                 continue
             
-            # 接收能耗
             total_bits = data_size * ch.n_members
             rx_energy = self.energy_model.calc_receive_energy(total_bits)
             ch.node.consume_energy(rx_energy)
             
-            # 聚合
             fusion_energy = self.energy_model.E_da * total_bits
             ch.node.consume_energy(fusion_energy)
             
-            # 发送能耗
             dist_to_bs = ch.node.distance_to(self.base_station)
             tx_to_bs = self.energy_model.calc_transmit_energy(dist_to_bs, total_bits)
             ch.node.consume_energy(tx_to_bs)
@@ -212,13 +353,9 @@ class Network:
         Returns:
             网络指标
         """
-        # 设置阶段
         self.setup_phase(protocol_name, **kwargs)
-        
-        # 稳定阶段
         self.steady_phase()
         
-        # 记录指标
         metrics = self._collect_metrics()
         self.metrics_history.append(metrics)
         
@@ -264,11 +401,9 @@ class Network:
             results["total_energy"].append(metrics.total_energy)
             results["cluster_heads"].append(metrics.n_cluster_heads)
             
-            # 检查停止条件
             if stop_condition and stop_condition(self, r):
                 break
         
-        # 计算汇总指标
         first_dead_round = next(
             (i for i, n in enumerate(results["alive_nodes"]) if n < self.n_nodes),
             rounds
@@ -294,7 +429,6 @@ class Network:
         alive = self.alive_nodes
         energies = [n.energy for n in alive]
         
-        # 簇大小分布
         cluster_sizes = {}
         for ch in self.cluster_heads:
             cluster_sizes[ch.cluster_id] = ch.n_members
@@ -310,7 +444,7 @@ class Network:
             cluster_size_distribution=cluster_sizes
         )
     
-    def reset(self):
+    def reset(self) -> None:
         """重置网络"""
         for node in self.nodes:
             node.energy = node.initial_energy
@@ -324,6 +458,7 @@ class Network:
         self.cluster_heads.clear()
         self.metrics_history.clear()
         self.base_station.reset()
+        self._invalidate_index()
     
     def get_node(self, node_id: int) -> Optional[Node]:
         """获取节点"""

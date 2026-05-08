@@ -1,15 +1,25 @@
 """AI 优化模块"""
 
-from .selector import AIClusterSelector
+from .selector import AIClusterSelector, EnsembleClusterSelector
 from .sklearn_selector import SklearnClusterSelector
-from .pytorch_selector import PyTorchClusterSelector
-from .feature_engineering import FeatureEngineer
-from .trainer import AITrainer
+from .feature_engineering import AdvancedFeatureExtractor, FeatureSelector
+
+try:
+    from .pytorch_selector import PyTorchClusterSelector
+except ImportError:
+    PyTorchClusterSelector = None
+
+try:
+    from .trainer import AITrainer
+except ImportError:
+    AITrainer = None
 
 __all__ = [
     "AIClusterSelector",
+    "EnsembleClusterSelector",
     "SklearnClusterSelector",
     "PyTorchClusterSelector",
-    "FeatureEngineer",
+    "AdvancedFeatureExtractor",
+    "FeatureSelector",
     "AITrainer",
 ]
