@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .models import EnergyModel
 
 
-@dataclass
 class FirstOrderRadioModel:
     """
     First Order Radio Model
@@ -17,20 +19,32 @@ class FirstOrderRadioModel:
     - epsilon_mp: 多径衰落能耗系数
     - d_threshold: 距离阈值
     - E_da: 数据聚合能耗
+    
+    兼容模式：可通过 factory 或直接实例化使用。
     """
     
-    # 电路能耗 (J/bit)
-    E_elec: float = 50e-9  # 50 nJ/bit
+    def __init__(
+        self,
+        E_elec: float = 50e-9,
+        epsilon_fs: float = 10e-12,
+        epsilon_mp: float = 0.0013e-12,
+        d_threshold: float = 87.0,
+        E_da: float = 5e-9
+    ):
+        self.E_elec = E_elec
+        self.epsilon_fs = epsilon_fs
+        self.epsilon_mp = epsilon_mp
+        self.d_threshold = d_threshold
+        self._E_da = E_da
     
-    # 放大器能耗 (J/bit/m^2 或 J/bit/m^4)
-    epsilon_fs: float = 10e-12  # 10 pJ/bit/m^2 (自由空间)
-    epsilon_mp: float = 0.0013e-12  # 0.0013 pJ/bit/m^4 (多径)
+    @property
+    def E_da(self) -> float:
+        """数据聚合能耗"""
+        return self._E_da
     
-    # 距离阈值 (m)
-    d_threshold: float = 87.0  # sqrt(epsilon_fs / epsilon_mp)
-    
-    # 数据聚合能耗 (J/bit)
-    E_da: float = 5e-9  # 5 nJ/bit
+    @E_da.setter
+    def E_da(self, value: float) -> None:
+        self._E_da = value
     
     def calc_transmit_energy(self, distance: float, message_size: int) -> float:
         """
@@ -44,12 +58,9 @@ class FirstOrderRadioModel:
             发送能耗 (J)
         """
         if distance <= self.d_threshold:
-            # 自由空间模型
             energy = (self.E_elec + self.epsilon_fs * distance ** 2) * message_size
         else:
-            # 多径衰落模型
             energy = (self.E_elec + self.epsilon_mp * distance ** 4) * message_size
-        
         return energy
     
     def calc_receive_energy(self, message_size: int) -> float:
@@ -74,7 +85,7 @@ class FirstOrderRadioModel:
         Returns:
             聚合能耗 (J)
         """
-        return self.E_da * message_size
+        return self._E_da * message_size
     
     def calc_total_communication_energy(
         self,
@@ -130,29 +141,46 @@ class FirstOrderRadioModel:
         Returns:
             估算总能耗 (J)
         """
-        # 假设最优簇头比例 p = 0.05
         p = 0.05
         n_ch = int(n_nodes * p)
         members_per_ch = n_nodes / n_ch - 1
         
-        # 每轮每节点能耗估算
         energy_per_round = 0
         
         for _ in range(n_rounds):
-            # 簇头能耗
-            # 接收 + 聚合 + 发送
             ch_bits = message_size * (1 + members_per_ch)
             ch_energy = (
-                self.E_elec * ch_bits +  # 接收
-                self.E_da * ch_bits +     # 聚合
-                self.calc_transmit_energy(self.d_threshold, ch_bits)  # 发送
+                self.E_elec * ch_bits +
+                self._E_da * ch_bits +
+                self.calc_transmit_energy(self.d_threshold, ch_bits)
             )
             energy_per_round += n_ch * ch_energy
             
-            # 成员节点能耗（仅发送）
             member_bits = message_size
             avg_dist_to_ch = self.d_threshold / 2
             member_energy = self.calc_transmit_energy(avg_dist_to_ch, member_bits)
             energy_per_round += (n_nodes - n_ch) * member_energy
         
         return energy_per_round
+    
+    def to_dict(self) -> dict:
+        """转换为字典"""
+        return {
+            'E_elec': self.E_elec,
+            'epsilon_fs': self.epsilon_fs,
+            'epsilon_mp': self.epsilon_mp,
+            'd_threshold': self.d_threshold,
+            'E_da': self._E_da,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> 'FirstOrderRadioModel':
+        """从字典创建"""
+        return cls(**data)
+    
+    def __repr__(self) -> str:
+        return (
+            f"FirstOrderRadioModel(E_elec={self.E_elec:.2e}, "
+            f"epsilon_fs={self.epsilon_fs:.2e}, epsilon_mp={self.epsilon_mp:.2e}, "
+            f"d_threshold={self.d_threshold:.1f}, E_da={self._E_da:.2e})"
+        )

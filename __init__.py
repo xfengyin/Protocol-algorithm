@@ -11,7 +11,7 @@ from src.leach.leach_ee import LEACHEE
 from src.leach.leach_m import LEACHM
 from src.energy.radio_model import FirstOrderRadioModel
 from src.ai.selector import AIClusterSelector
-from src.simulation.engine import SimulationEngine
+from src.simulation.engine import ParallelSimulationEngine
 
 __all__ = [
     "Node",
@@ -23,5 +23,5 @@ __all__ = [
     "LEACHM",
     "FirstOrderRadioModel",
     "AIClusterSelector",
-    "SimulationEngine",
+    "ParallelSimulationEngine",
 ]
