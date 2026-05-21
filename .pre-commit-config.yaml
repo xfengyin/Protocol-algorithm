@@ -1,0 +1,110 @@
+# ============================================
+# Pre-commit Hooks Configuration
+# ============================================
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+# ============================================
+
+default_language_version:
+  python: python3.11
+
+repos:
+  # -------------------------------------------
+  # 通用检查
+  # -------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # 检测大文件
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
+      # 检查 YAML 格式
+      - id: check-yaml
+      # 检查 JSON 格式
+      - id: check-json
+      # 检测合并冲突标记
+      - id: check-merge-conflict
+      # 检测调试语句 (print, pdb, breakpoint 等)
+      - id: debug-statements
+      # 修复末尾换行
+      - id: end-of-file-fixer
+      # 移除末尾空格
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      # 检查 shebang 格式
+      - id: check-shebang-scripts-are-executable
+      # 检查文件权限
+      - id: detect-private-key
+
+  # -------------------------------------------
+  # 导入排序 (isort)
+  # -------------------------------------------
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: Sort imports
+        args: ["--profile", "black", "--filter-files"]
+
+  # -------------------------------------------
+  # 代码格式化 (Black)
+  # -------------------------------------------
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+        name: Black code formatter
+        language_version: python3.11
+
+  # -------------------------------------------
+  # 代码检查 (Flake8)
+  # -------------------------------------------
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        name: Flake8 lint
+        args:
+          - "--max-line-length=88"
+          - "--extend-ignore=E203,W503"
+          - "--per-file-ignores=__init__.py:F401"
+          - "--statistics"
+
+  # -------------------------------------------
+  # 类型检查 (mypy)
+  # -------------------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.9.0
+    hooks:
+      - id: mypy
+        name: mypy type check
+        args:
+          - "--ignore-missing-imports"
+          - "--no-strict-optional"
+          - "--warn-unused-ignores"
+          - "--disallow-untyped-defs"
+        additional_dependencies:
+          - types-requests
+          - types-setuptools
+
+  # -------------------------------------------
+  # 提交信息规范检查
+  # -------------------------------------------
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.2.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Conventional commit messages
+        stages: [commit-msg]
+        args: []
+
+  # -------------------------------------------
+  # 安全检查 (Bandit)
+  # -------------------------------------------
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.8
+    hooks:
+      - id: bandit
+        name: Bandit security scan
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]

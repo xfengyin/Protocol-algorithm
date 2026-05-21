@@ -1,0 +1,150 @@
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyc
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-wheel-metadata/
+
+# ============================================
+# Virtual Environments
+# ============================================
+venv/
+ENV/
+env/
+.venv/
+.env
+
+# ============================================
+# IDE
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+*.tmproj
+
+# ============================================
+# Jupyter Notebook
+# ============================================
+.ipynb_checkpoints/
+jupyter/jupyter_notebook_config.json
+
+# ============================================
+# pytest
+# ============================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ============================================
+# mypy
+# ============================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ============================================
+# Runtime Generated Files
+# ============================================
+results/
+output/
+logs/
+*.log
+
+# Simulation results and visualizations
+*.png
+*.gif
+*.mp4
+*.avi
+*.mov
+*.pdf
+*.csv
+*.json
+!pyproject.toml
+!package.json
+
+# ============================================
+# OS
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.tmp
+*.bak
+
+# ============================================
+# Package Managers
+# ============================================
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ============================================
+# Sphinx documentation
+# ============================================
+docs/_build/
+
+# ============================================
+# PyInstaller
+# ============================================
+*.manifest
+*.spec
+
+# ============================================
+# Environment variables
+# ============================================
+.env
+.env.local
+.env.*.local
+
+# ============================================
+# Poetry
+# ============================================
+poetry.lock
+
+# ============================================
+# Hatch
+# ============================================
+.hatch/
+
+# ============================================
+# Ruff
+# ============================================
+.ruff_cache/

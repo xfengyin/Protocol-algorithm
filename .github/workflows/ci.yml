@@ -1,0 +1,207 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  # -------------------------------------------
+  # 代码质量检查
+  # -------------------------------------------
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black==24.3.0 isort==5.13.2 flake8==7.0.0 mypy==1.9.0
+
+      - name: Check Black formatting
+        run: |
+          black --check --diff src/ tests/
+
+      - name: Check import sorting
+        run: |
+          isort --check-only --diff src/ tests/
+
+      - name: Run flake8
+        run: |
+          flake8 src/ tests/ \
+            --max-line-length=88 \
+            --extend-ignore=E203,W503 \
+            --per-file-ignores="__init__.py:F401" \
+            --statistics
+
+      - name: Run mypy type check
+        run: |
+          mypy src/ --ignore-missing-imports \
+            --no-strict-optional \
+            --warn-unused-ignores \
+            --disallow-untyped-defs
+
+  # -------------------------------------------
+  # 安全扫描
+  # -------------------------------------------
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit==1.7.8 safety==3.1.0
+
+      - name: Run Bandit security scan
+        run: |
+          bandit -r src/ \
+            --format=custom \
+            --confidence-level=medium \
+            --severity-level=medium \
+            --exclude=tests/ \
+            --output=bandit-report.txt || true
+
+      - name: Run Safety dependency check
+        run: |
+          safety check --json --output=safety-report.json || true
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.txt
+            safety-report.json
+          retention-days: 30
+
+  # -------------------------------------------
+  # 单元测试与覆盖率
+  # -------------------------------------------
+  test:
+    name: Test (Python ${{ matrix.python-version }}, OS ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+        os: [ubuntu-latest]
+        include:
+          - python-version: "3.11"
+            os: ubuntu-latest
+            coverage: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest==8.1.1 pytest-cov==5.0.0 pytest-xdist==3.5.0
+
+      - name: Run tests with coverage
+        if: matrix.coverage
+        run: |
+          pytest tests/ \
+            -v \
+            --cov=src \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-report=term-missing:skip-covered \
+            --junitxml=junit-report.xml \
+            --numprocesses=auto \
+            --durations=10
+
+      - name: Run tests without coverage
+        if: ${{ !matrix.coverage }}
+        run: |
+          pytest tests/ \
+            -v \
+            --junitxml=junit-report.xml \
+            --numprocesses=auto \
+            --durations=10
+
+      - name: Upload coverage report
+        if: matrix.coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-py${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 30
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-py${{ matrix.python-version }}-${{ matrix.os }}
+          path: junit-report.xml
+          retention-days: 30
+
+  # -------------------------------------------
+  # 汇总报告
+  # -------------------------------------------
+  summary:
+    name: CI Summary
+    needs: [lint, security, test]
+    runs-on: ubuntu-latest
+    if: always()
+    timeout-minutes: 5
+
+    steps:
+      - name: Check job status
+        run: |
+          echo "================================"
+          echo "CI Pipeline Summary"
+          echo "================================"
+          echo "Lint:          ${{ needs.lint.result }}"
+          echo "Security:      ${{ needs.security.result }}"
+          echo "Tests:         ${{ needs.test.result }}"
+          echo "================================"
+
+          if [ "${{ needs.lint.result }}" = "failure" ] || \
+             [ "${{ needs.security.result }}" = "failure" ] || \
+             [ "${{ needs.test.result }}" = "failure" ]; then
+            echo "CI Pipeline FAILED"
+            exit 1
+          else
+            echo "CI Pipeline PASSED"
+          fi
