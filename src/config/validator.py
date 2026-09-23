@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List, Tuple, Optional, Any, Dict, Union
-from pathlib import Path
-import yaml
 import json
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+import yaml
 
 
 @dataclass
 class NetworkConfig:
     """网络配置（带验证）"""
+
     n_nodes: int = 100
     area: Tuple[float, float, float, float] = (0, 100, 0, 100)
     base_station_pos: Tuple[float, float] = (50, 50)
@@ -46,6 +48,7 @@ class NetworkConfig:
 @dataclass
 class SimulationConfig:
     """仿真配置（带验证）"""
+
     rounds: int = 1000
     protocol_name: str = "leach"
     data_size: int = 4000
@@ -72,6 +75,7 @@ class SimulationConfig:
 @dataclass
 class EnergyConfig:
     """能量模型配置"""
+
     model_name: str = "first_order"
     E_elec: float = 50e-9
     epsilon_fs: float = 10e-12
@@ -85,7 +89,7 @@ class EnergyConfig:
 
     def _validate(self) -> None:
         """验证配置有效性"""
-        if self.model_name not in ['first_order', 'mica2', 'rssi', 'adaptive']:
+        if self.model_name not in ["first_order", "mica2", "rssi", "adaptive"]:
             raise ValueError(f"Unknown energy model: {self.model_name}")
 
         if self.E_elec <= 0:
@@ -98,6 +102,7 @@ class EnergyConfig:
 @dataclass
 class AIConfig:
     """AI 配置"""
+
     enabled: bool = False
     model_type: str = "sklearn"
     n_estimators: int = 100
@@ -111,10 +116,15 @@ class AIConfig:
 
     def _validate(self) -> None:
         """验证配置有效性"""
-        if self.model_type not in ['sklearn', 'pytorch', 'lightgbm']:
+        if self.model_type not in ["sklearn", "pytorch", "lightgbm"]:
             raise ValueError(f"Unknown model type: {self.model_type}")
 
-        if self.feature_normalization not in ['zscore', 'minmax', 'robust', 'none']:
+        if self.feature_normalization not in [
+            "zscore",
+            "minmax",
+            "robust",
+            "none",
+        ]:
             raise ValueError(f"Unknown normalization: {self.feature_normalization}")
 
         if self.n_estimators < 1:
@@ -127,6 +137,7 @@ class AIConfig:
 @dataclass
 class VisualizationConfig:
     """可视化配置"""
+
     enabled: bool = True
     save_plots: bool = False
     save_animation: bool = False
@@ -155,6 +166,7 @@ class VisualizationConfig:
 @dataclass
 class FullConfig:
     """完整配置"""
+
     network: NetworkConfig = field(default_factory=NetworkConfig)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
     energy: EnergyConfig = field(default_factory=EnergyConfig)
@@ -172,7 +184,7 @@ class FullConfig:
         Returns:
             FullConfig 实例
         """
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             data = yaml.safe_load(f)
 
         return cls.from_dict(data)
@@ -188,7 +200,7 @@ class FullConfig:
         Returns:
             FullConfig 实例
         """
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             data = json.load(f)
 
         return cls.from_dict(data)
@@ -204,18 +216,18 @@ class FullConfig:
         Returns:
             FullConfig 实例
         """
-        network_data = data.get('network', {})
-        simulation_data = data.get('simulation', {})
-        energy_data = data.get('energy', {})
-        ai_data = data.get('ai', {})
-        visualization_data = data.get('visualization', {})
+        network_data = data.get("network", {})
+        simulation_data = data.get("simulation", {})
+        energy_data = data.get("energy", {})
+        ai_data = data.get("ai", {})
+        visualization_data = data.get("visualization", {})
 
         return cls(
             network=NetworkConfig(**network_data),
             simulation=SimulationConfig(**simulation_data),
             energy=EnergyConfig(**energy_data),
             ai=AIConfig(**ai_data),
-            visualization=VisualizationConfig(**visualization_data)
+            visualization=VisualizationConfig(**visualization_data),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -226,47 +238,47 @@ class FullConfig:
             配置字典
         """
         return {
-            'network': {
-                'n_nodes': self.network.n_nodes,
-                'area': list(self.network.area),
-                'base_station_pos': list(self.network.base_station_pos),
-                'initial_energy': self.network.initial_energy,
-                'seed': self.network.seed,
+            "network": {
+                "n_nodes": self.network.n_nodes,
+                "area": list(self.network.area),
+                "base_station_pos": list(self.network.base_station_pos),
+                "initial_energy": self.network.initial_energy,
+                "seed": self.network.seed,
             },
-            'simulation': {
-                'rounds': self.simulation.rounds,
-                'protocol_name': self.simulation.protocol_name,
-                'data_size': self.simulation.data_size,
-                'stop_at_first_death': self.simulation.stop_at_first_death,
-                'stop_at_half_death': self.simulation.stop_at_half_death,
-                'checkpoint_interval': self.simulation.checkpoint_interval,
+            "simulation": {
+                "rounds": self.simulation.rounds,
+                "protocol_name": self.simulation.protocol_name,
+                "data_size": self.simulation.data_size,
+                "stop_at_first_death": self.simulation.stop_at_first_death,
+                "stop_at_half_death": self.simulation.stop_at_half_death,
+                "checkpoint_interval": self.simulation.checkpoint_interval,
             },
-            'energy': {
-                'model_name': self.energy.model_name,
-                'E_elec': self.energy.E_elec,
-                'epsilon_fs': self.energy.epsilon_fs,
-                'epsilon_mp': self.energy.epsilon_mp,
-                'd_threshold': self.energy.d_threshold,
-                'E_da': self.energy.E_da,
+            "energy": {
+                "model_name": self.energy.model_name,
+                "E_elec": self.energy.E_elec,
+                "epsilon_fs": self.energy.epsilon_fs,
+                "epsilon_mp": self.energy.epsilon_mp,
+                "d_threshold": self.energy.d_threshold,
+                "E_da": self.energy.E_da,
             },
-            'ai': {
-                'enabled': self.ai.enabled,
-                'model_type': self.ai.model_type,
-                'n_estimators': self.ai.n_estimators,
-                'learning_rate': self.ai.learning_rate,
-                'feature_normalization': self.ai.feature_normalization,
-                'use_ensemble': self.ai.use_ensemble,
+            "ai": {
+                "enabled": self.ai.enabled,
+                "model_type": self.ai.model_type,
+                "n_estimators": self.ai.n_estimators,
+                "learning_rate": self.ai.learning_rate,
+                "feature_normalization": self.ai.feature_normalization,
+                "use_ensemble": self.ai.use_ensemble,
             },
-            'visualization': {
-                'enabled': self.visualization.enabled,
-                'save_plots': self.visualization.save_plots,
-                'save_animation': self.visualization.save_animation,
-                'output_dir': self.visualization.output_dir,
-                'animation_interval': self.visualization.animation_interval,
-                'animation_fps': self.visualization.animation_fps,
-                'figsize': list(self.visualization.figsize),
-                'dpi': self.visualization.dpi,
-            }
+            "visualization": {
+                "enabled": self.visualization.enabled,
+                "save_plots": self.visualization.save_plots,
+                "save_animation": self.visualization.save_animation,
+                "output_dir": self.visualization.output_dir,
+                "animation_interval": self.visualization.animation_interval,
+                "animation_fps": self.visualization.animation_fps,
+                "figsize": list(self.visualization.figsize),
+                "dpi": self.visualization.dpi,
+            },
         }
 
     def save_yaml(self, path: str) -> None:
@@ -276,7 +288,7 @@ class FullConfig:
         Args:
             path: 保存路径
         """
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             yaml.dump(self.to_dict(), f, default_flow_style=False)
 
     def save_json(self, path: str) -> None:
@@ -286,7 +298,7 @@ class FullConfig:
         Args:
             path: 保存路径
         """
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
 
@@ -306,14 +318,14 @@ def validate_config_file(path: str) -> Tuple[bool, Optional[str]]:
         if not path_obj.exists():
             return False, f"File not found: {path}"
 
-        if path_obj.suffix not in ['.yaml', '.yml', '.json']:
+        if path_obj.suffix not in [".yaml", ".yml", ".json"]:
             return False, f"Unsupported file format: {path_obj.suffix}"
 
-        if path_obj.suffix in ['.yaml', '.yml']:
-            with open(path, 'r') as f:
+        if path_obj.suffix in [".yaml", ".yml"]:
+            with open(path, "r") as f:
                 data = yaml.safe_load(f)
         else:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 data = json.load(f)
 
         if not isinstance(data, dict):

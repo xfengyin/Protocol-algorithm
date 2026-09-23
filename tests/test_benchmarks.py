@@ -1,12 +1,13 @@
 """性能基准测试"""
 
-import pytest
 import time
-import numpy as np
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
+import numpy as np
+import pytest
+
+from src.energy.models import FirstOrderRadioModel, Mica2Model
 from src.models.network import Network
-from src.energy.radio_model import FirstOrderRadioModel
 
 
 class BenchmarkResults:
@@ -21,32 +22,34 @@ class BenchmarkResults:
         n_nodes: int,
         n_rounds: int,
         execution_time: float,
-        operations_per_second: float
+        operations_per_second: float,
     ):
         """添加结果"""
-        self.results.append({
-            'name': name,
-            'n_nodes': n_nodes,
-            'n_rounds': n_rounds,
-            'execution_time': execution_time,
-            'ops_per_sec': operations_per_second
-        })
+        self.results.append(
+            {
+                "name": name,
+                "n_nodes": n_nodes,
+                "n_rounds": n_rounds,
+                "execution_time": execution_time,
+                "ops_per_sec": operations_per_second,
+            }
+        )
 
     def summary(self) -> Dict[str, Any]:
         """生成汇总"""
         if not self.results:
             return {}
 
-        times = [r['execution_time'] for r in self.results]
-        ops = [r['ops_per_sec'] for r in self.results]
+        times = [r["execution_time"] for r in self.results]
+        ops = [r["ops_per_sec"] for r in self.results]
 
         return {
-            'mean_time': np.mean(times),
-            'std_time': np.std(times),
-            'min_time': np.min(times),
-            'max_time': np.max(times),
-            'mean_ops': np.mean(ops),
-            'total_runs': len(self.results)
+            "mean_time": np.mean(times),
+            "std_time": np.std(times),
+            "min_time": np.min(times),
+            "max_time": np.max(times),
+            "mean_ops": np.mean(ops),
+            "total_runs": len(self.results),
         }
 
     def __str__(self) -> str:
@@ -63,7 +66,7 @@ class BenchmarkResults:
             f"Min Time: {summary['min_time']:.4f}s",
             f"Max Time: {summary['max_time']:.4f}s",
             f"Mean Ops/sec: {summary['mean_ops']:.2f}",
-            "=" * 60
+            "=" * 60,
         ]
         return "\n".join(lines)
 
@@ -82,24 +85,18 @@ class TestPerformanceBenchmarks:
                 n_nodes=n_nodes,
                 area=(0, 200, 0, 200),
                 base_station_pos=(100, 100),
-                seed=42
+                seed=42,
             )
 
             node = network.alive_nodes[0]
 
             start = time.time()
             for _ in range(100):
-                neighbors = network.get_neighbors(node, 30.0)
+                network.get_neighbors(node, 30.0)
             elapsed = time.time() - start
 
             ops = 100 / elapsed
-            benchmark_results.add(
-                'neighbor_search',
-                n_nodes,
-                100,
-                elapsed,
-                ops
-            )
+            benchmark_results.add("neighbor_search", n_nodes, 100, elapsed, ops)
 
             print(f"Nodes: {n_nodes}, Time: {elapsed:.4f}s, Ops: {ops:.2f}/s")
 
@@ -110,23 +107,18 @@ class TestPerformanceBenchmarks:
                 n_nodes=n_nodes,
                 area=(0, 100, 0, 100),
                 base_station_pos=(50, 50),
-                seed=42
+                seed=42,
             )
 
             start = time.time()
-            results = network.simulate_network(rounds=100, protocol_name='leach')
+            results = network.simulate_network(rounds=100, protocol_name="leach")
             elapsed = time.time() - start
 
             ops = 100 / elapsed
-            benchmark_results.add(
-                'simulation_round',
-                n_nodes,
-                100,
-                elapsed,
-                ops
-            )
+            benchmark_results.add("simulation_round", n_nodes, 100, elapsed, ops)
 
-            print(f"Nodes: {n_nodes}, Time: {elapsed:.4f}s, Rounds: {results['total_rounds_simulated']}")
+            total_rounds = results["total_rounds_simulated"]
+            print(f"Nodes: {n_nodes}, Time: {elapsed:.4f}s, Rounds: {total_rounds}")
 
     def test_vectorized_vs_original(self, benchmark_results):
         """向量化 vs 原始实现性能对比"""
@@ -138,11 +130,11 @@ class TestPerformanceBenchmarks:
             n_nodes=n_nodes,
             area=(0, 100, 0, 100),
             base_station_pos=(50, 50),
-            seed=42
+            seed=42,
         )
 
         start = time.time()
-        network_vec.simulate_network(rounds=n_rounds, protocol_name='leach')
+        network_vec.simulate_network(rounds=n_rounds, protocol_name="leach")
         vec_time = time.time() - start
 
         print(f"Vectorized: {vec_time:.4f}s")
@@ -152,12 +144,12 @@ class TestPerformanceBenchmarks:
             n_nodes=n_nodes,
             area=(0, 100, 0, 100),
             base_station_pos=(50, 50),
-            seed=42
+            seed=42,
         )
 
         start = time.time()
         for _ in range(n_rounds):
-            network_orig.setup_phase('leach')
+            network_orig.setup_phase("leach")
             network_orig.steady_phase_original()
         orig_time = time.time() - start
 
@@ -167,11 +159,11 @@ class TestPerformanceBenchmarks:
         print(f"\nSpeedup: {speedup:.2f}x")
 
         benchmark_results.add(
-            'vectorized_vs_original',
+            "vectorized_vs_original",
             n_nodes,
             n_rounds,
             vec_time,
-            n_rounds / vec_time
+            n_rounds / vec_time,
         )
 
     def test_memory_usage_estimate(self):
@@ -182,7 +174,7 @@ class TestPerformanceBenchmarks:
             n_nodes=1000,
             area=(0, 100, 0, 100),
             base_station_pos=(50, 50),
-            seed=42
+            seed=42,
         )
 
         size_bytes = sys.getsizeof(network)
@@ -202,11 +194,11 @@ class TestPerformanceBenchmarks:
                 n_nodes=n,
                 area=(0, 100, 0, 100),
                 base_station_pos=(50, 50),
-                seed=42
+                seed=42,
             )
 
             start = time.time()
-            network.simulate_network(rounds=50, protocol_name='leach')
+            network.simulate_network(rounds=50, protocol_name="leach")
             elapsed = time.time() - start
             times.append(elapsed)
 
@@ -222,8 +214,6 @@ class TestEnergyModelComparison:
 
     def test_model_energy_calculation_comparison(self):
         """不同能量模型计算对比"""
-        from src.energy.models import FirstOrderRadioModel, Mica2Model
-
         first_order = FirstOrderRadioModel()
         mica2 = Mica2Model()
 
@@ -255,7 +245,7 @@ class TestAIInference:
             n_nodes=200,
             area=(0, 100, 0, 100),
             base_station_pos=(50, 50),
-            seed=42
+            seed=42,
         )
 
         extractor = AdvancedFeatureExtractor(network)
@@ -272,7 +262,6 @@ class TestAIInference:
 
 def run_all_benchmarks():
     """运行所有基准测试"""
-    import sys
 
     print("=" * 60)
     print("RUNNING PERFORMANCE BENCHMARKS")
@@ -306,5 +295,5 @@ def run_all_benchmarks():
     return results
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_all_benchmarks()

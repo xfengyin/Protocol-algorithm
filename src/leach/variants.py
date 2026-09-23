@@ -11,7 +11,7 @@ from .leach_m import LEACHM
 
 class LEACHRegistry:
     """LEACH 协议注册表"""
-    
+
     _protocols: Dict[str, Type[LEACHProtocol]] = {
         "leach": ClassicLEACH,
         "classic": ClassicLEACH,
@@ -22,23 +22,23 @@ class LEACHRegistry:
         "leach-m": LEACHM,
         "leach_m": LEACHM,
     }
-    
+
     @classmethod
     def register(cls, name: str, protocol_class: Type[LEACHProtocol]):
         """注册新协议"""
         cls._protocols[name.lower()] = protocol_class
-    
+
     @classmethod
     def get(cls, name: str) -> LEACHProtocol:
         """获取协议实例"""
         name_lower = name.lower()
-        
+
         if name_lower not in cls._protocols:
             available = ", ".join(cls._protocols.keys())
             raise ValueError(f"Unknown protocol: {name}. Available: {available}")
-        
+
         return cls._protocols[name_lower]()
-    
+
     @classmethod
     def list_protocols(cls) -> list:
         """列出所有注册的协议"""
