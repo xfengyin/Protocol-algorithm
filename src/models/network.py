@@ -244,7 +244,15 @@ class Network:
         for ch in self.cluster_heads:
             ch.clear_members()
         
-        if not self.cluster_heads or not self.alive_nodes:
+        if not self.alive_nodes:
+            return
+
+        if not self.cluster_heads:
+            # 没有任何簇头时,存活节点仍需保持无线监听(空闲功耗)。
+            # 否则它们既不发送也不接收,零能耗 -> 永不死亡,形成"僵尸节点"。
+            idle_energy = self.energy_model.calc_receive_energy(data_size)
+            for node in self.alive_nodes:
+                node.consume_energy(idle_energy)
             return
         
         ch_positions = np.array([(ch.node.x, ch.node.y) for ch in self.cluster_heads])

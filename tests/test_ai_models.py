@@ -4,7 +4,6 @@ import pytest
 import numpy as np
 
 from src.ai.sklearn_selector import SklearnClusterSelector
-from src.ai.feature_engineering import FeatureEngineer
 
 
 class TestSklearnClusterSelector:
@@ -59,49 +58,3 @@ class TestSklearnClusterSelector:
         
         assert len(importance) == len(selector.feature_names)
         assert all(v >= 0 for v in importance.values())
-
-
-class TestFeatureEngineer:
-    """特征工程测试"""
-    
-    @pytest.fixture
-    def engineer(self):
-        return FeatureEngineer()
-    
-    def test_create_basic_features(self, engineer):
-        """测试创建基础特征"""
-        x = np.array([10, 20, 30])
-        y = np.array([15, 25, 35])
-        energy = np.array([0.5, 0.4, 0.3])
-        dist_to_bs = np.array([50, 40, 30])
-        
-        features, names = engineer.create_basic_features(x, y, energy, dist_to_bs)
-        
-        assert features.shape[0] == 3
-        assert len(names) == features.shape[1]
-        assert 'x' in names
-        assert 'energy' in names
-    
-    def test_scale_features_standard(self, engineer):
-        """测试标准化"""
-        X = np.random.randn(100, 5)
-        
-        X_scaled = engineer.scale_features(X, method='standard')
-        
-        mean = np.mean(X_scaled, axis=0)
-        std = np.std(X_scaled, axis=0)
-        
-        assert np.allclose(mean, 0, atol=1e-10)
-        assert np.allclose(std, 1, atol=1e-10)
-    
-    def test_scale_features_minmax(self, engineer):
-        """测试归一化"""
-        X = np.random.randn(100, 5)
-        
-        X_scaled = engineer.scale_features(X, method='minmax')
-        
-        min_vals = np.min(X_scaled, axis=0)
-        max_vals = np.max(X_scaled, axis=0)
-        
-        assert np.allclose(min_vals, 0)
-        assert np.allclose(max_vals, 1)

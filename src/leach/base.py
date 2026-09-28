@@ -50,7 +50,7 @@ class LEACHProtocol(ABC):
         """
         if n_iterations % int(1 / self.p) == 0:
             return self.p
-        return self.p * (1 - self.p * (n_iterations % int(1 / self.p)))
+        return self.p / (1 - self.p * (n_iterations % int(1 / self.p)))
     
     def reset(self):
         """重置协议状态"""

@@ -308,8 +308,14 @@ class TestFeatureEngineering:
         col_means = np.mean(normalized, axis=0)
         col_stds = np.std(normalized, axis=0)
         
-        assert np.allclose(col_means, 0, atol=1e-10)
-        assert np.allclose(col_stds, 1, atol=1e-10)
+        # 常量(退化)列标准化后必然是 0,其标准差为 0 而不是 1——
+        # normalize_features 对 std<1e-9 的列把除数置 1,这是正确行为,
+        # 因此这里只对非退化列断言 std==1。
+        degenerate = np.std(features, axis=0) < 1e-9
+        assert np.allclose(col_means[~degenerate], 0, atol=1e-10)
+        assert np.allclose(col_stds[~degenerate], 1, atol=1e-10)
+        if degenerate.any():
+            assert np.allclose(normalized[:, degenerate], 0, atol=1e-10)
 
 
 class TestEnsembleSelector:
