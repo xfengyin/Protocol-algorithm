@@ -93,8 +93,18 @@ jobs:
         run: |
           safety check --json --output=safety-report.json || true
 
-      - name: Upload security reports
-        if: always()
+      - name: Upload security reports (Gitea)
+        if: (always()) && github.server_url != 'https://github.com'
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            bandit-report.txt
+            safety-report.json
+          retention-days: 30
+
+      - name: Upload security reports (GitHub)
+        if: (always()) && github.server_url == 'https://github.com'
         uses: actions/upload-artifact@v6
         with:
           name: security-reports
@@ -158,8 +168,18 @@ jobs:
             --numprocesses=auto \
             --durations=10
 
-      - name: Upload coverage report
-        if: matrix.coverage
+      - name: Upload coverage report (Gitea)
+        if: (matrix.coverage) && github.server_url != 'https://github.com'
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report-py${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 30
+
+      - name: Upload coverage report (GitHub)
+        if: (matrix.coverage) && github.server_url == 'https://github.com'
         uses: actions/upload-artifact@v6
         with:
           name: coverage-report-py${{ matrix.python-version }}
@@ -168,8 +188,16 @@ jobs:
             htmlcov/
           retention-days: 30
 
-      - name: Upload test results
-        if: always()
+      - name: Upload test results (Gitea)
+        if: (always()) && github.server_url != 'https://github.com'
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-py${{ matrix.python-version }}-${{ matrix.os }}
+          path: junit-report.xml
+          retention-days: 30
+
+      - name: Upload test results (GitHub)
+        if: (always()) && github.server_url == 'https://github.com'
         uses: actions/upload-artifact@v6
         with:
           name: test-results-py${{ matrix.python-version }}-${{ matrix.os }}
