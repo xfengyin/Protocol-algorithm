@@ -15,6 +15,14 @@ on:
 env:
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
+  # 实测（19:34，同一分钟内）：pypi.tuna 0.28s / mirrors.aliyun 0.31s / pypi.org 1.09s，
+  # 走 Pi 代理也不改变这个差距。原本 workflow 没设 index，pip 直接打 pypi.org，
+  # 于是 task 1135 的 `pip install -r requirements.txt` 跑了 40+ 分钟还没结束
+  # （进程活着但只占 1.1% CPU，卡在 443 上，属于典型的下载停滞而非编译）。
+  PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+  # 失败要快：默认 pip 会重试 5 次、每次等 15s，叠加成几十分钟的静默等待。
+  PIP_DEFAULT_TIMEOUT: "15"
+  PIP_RETRIES: "2"
 
 # 同一分支的新 run 直接取代旧的：本机只有 2 个 runner 槽位，重复排队会重复跑完整构建
 # （picoclaw 一次 build-all 实测 30+ 分钟）。cancel-in-progress 用 false 时只要有一个 run
