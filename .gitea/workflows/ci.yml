@@ -131,7 +131,12 @@ jobs:
   # -------------------------------------------
   test:
     name: Test (Python ${{ matrix.python-version }}, OS ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    # matrix.os 直接当 runs-on 用会绕过标签治理：本机 opi-runner-1 也声明了 ubuntu-latest，
+    # 于是这个 python 测试 job 有约一半概率落到 1.4G 的 OrangePi 上 —— 而 Pi 的 act_runner
+    # 没配 github_mirror，连 action 都拉不下来。
+    # 本次就是现场证据：run#902 的两个 Test job 被派到 opi-runner-1，其一已 st=2 失败。
+    # 用 server_url 分支：GitHub 侧仍按 matrix.os（保留矩阵语义），Gitea 侧固定 amd64。
+    runs-on: ${{ github.server_url == 'https://github.com' && matrix.os || 'amd64' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
