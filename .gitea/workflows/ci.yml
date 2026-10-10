@@ -1,10 +1,15 @@
 name: CI Pipeline
 
+# 2026-10-10 修：本仓库默认分支是 master，但下面的触发分支只写了 main/develop，
+# 结果 CI **从来没在默认分支上跑过**（实测：推到 master 的提交不产生任何 run，
+# 最新 run 还停在 09-29 的手动/PR 触发）。全集群 33 个 push 触发的 workflow 里只有这一处不匹配，
+# 其余 master-default 仓库（leach / kongming / maaautonaruto / lenovotool2 / zhihu-salt-*）
+# 都把 master 列进去了 —— 这里按同一约定补上，纯增量、不减少任何覆盖。
 on:
   push:
-    branches: [main, develop]
+    branches: [master, main, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [master, main, develop]
   workflow_dispatch:
 
 env:
