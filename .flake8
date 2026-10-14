@@ -1,0 +1,12 @@
+[flake8]
+# 与 [tool.black] line-length=100 保持一致：此前 CI 用 88、black 用 100，
+# 导致同一份代码在两种标准下互相打架。
+max-line-length = 100
+extend-ignore = E203,W503
+per-file-ignores =
+    __init__.py:F401
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist
