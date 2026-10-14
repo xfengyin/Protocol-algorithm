@@ -50,22 +50,32 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Create venv (隔离共享 toolcache)
+        # act_runner 会把同一个 act-toolcache 卷挂进所有 job 容器的 /opt/hostedtoolcache，
+        # 并发 job 直接 pip install 进 toolcache 的 Python 会互相覆盖，实测报
+        #   OSError: [Errno 2] No such file or directory: .../isort-5.13.2.dist-info/RECORD*.tmp
+        # （run #911 的 Code Quality Check 就是这么红的，同轮 Security Scan 绿）。
+        # 每个 job 自建 venv：依赖只写 workspace 卷，toolcache 的 Python 只被只读使用。
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install black==24.3.0 isort==5.13.2 flake8==7.0.0 mypy==1.9.0
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install black==24.3.0 isort==5.13.2 flake8==7.0.0 mypy==1.9.0
 
       - name: Check Black formatting
         run: |
-          black --check --diff src/ tests/
+          .venv/bin/black --check --diff src/ tests/
 
       - name: Check import sorting
         run: |
-          isort --check-only --diff src/ tests/
+          .venv/bin/isort --check-only --diff src/ tests/
 
       - name: Run flake8
         run: |
-          flake8 src/ tests/ \
+          .venv/bin/flake8 src/ tests/ \
             --max-line-length=100 \
             --extend-ignore=E203,W503 \
             --per-file-ignores="__init__.py:F401" \
@@ -75,7 +85,7 @@ jobs:
         # ponytail: 存量 47 个类型错误（多为 Optional 收窄 / Any 返回），本回合先暴露不阻塞；清零后删掉下一行即变硬关卡。
         continue-on-error: true
         run: |
-          mypy src/ --ignore-missing-imports \
+          .venv/bin/mypy src/ --ignore-missing-imports \
             --no-strict-optional \
             --warn-unused-ignores \
             --explicit-package-bases
@@ -98,14 +108,24 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Create venv (隔离共享 toolcache)
+        # act_runner 会把同一个 act-toolcache 卷挂进所有 job 容器的 /opt/hostedtoolcache，
+        # 并发 job 直接 pip install 进 toolcache 的 Python 会互相覆盖，实测报
+        #   OSError: [Errno 2] No such file or directory: .../isort-5.13.2.dist-info/RECORD*.tmp
+        # （run #911 的 Code Quality Check 就是这么红的，同轮 Security Scan 绿）。
+        # 每个 job 自建 venv：依赖只写 workspace 卷，toolcache 的 Python 只被只读使用。
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Install security tools
         run: |
-          python -m pip install --upgrade pip
-          pip install bandit==1.7.8 safety==3.1.0
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install bandit==1.7.8 safety==3.1.0
 
       - name: Run Bandit security scan
         run: |
-          bandit -r src/ \
+          .venv/bin/bandit -r src/ \
             --format=custom \
             --confidence-level=medium \
             --severity-level=medium \
@@ -114,7 +134,7 @@ jobs:
 
       - name: Run Safety dependency check
         run: |
-          safety check --json --output=safety-report.json || true
+          .venv/bin/safety check --json --output=safety-report.json || true
 
       - name: Upload security reports (Gitea)
         if: (always()) && github.server_url != 'https://github.com'
@@ -168,16 +188,26 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
 
+      - name: Create venv (隔离共享 toolcache)
+        # act_runner 会把同一个 act-toolcache 卷挂进所有 job 容器的 /opt/hostedtoolcache，
+        # 并发 job 直接 pip install 进 toolcache 的 Python 会互相覆盖，实测报
+        #   OSError: [Errno 2] No such file or directory: .../isort-5.13.2.dist-info/RECORD*.tmp
+        # （run #911 的 Code Quality Check 就是这么红的，同轮 Security Scan 绿）。
+        # 每个 job 自建 venv：依赖只写 workspace 卷，toolcache 的 Python 只被只读使用。
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest==8.1.1 pytest-cov==5.0.0 pytest-xdist==3.5.0
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+          .venv/bin/pip install pytest==8.1.1 pytest-cov==5.0.0 pytest-xdist==3.5.0
 
       - name: Run tests with coverage
         if: matrix.coverage
         run: |
-          pytest tests/ \
+          .venv/bin/pytest tests/ \
             -v \
             --cov=src \
             --cov-report=xml:coverage.xml \
@@ -190,7 +220,7 @@ jobs:
       - name: Run tests without coverage
         if: ${{ !matrix.coverage }}
         run: |
-          pytest tests/ \
+          .venv/bin/pytest tests/ \
             -v \
             --junitxml=junit-report.xml \
             --numprocesses=auto \
