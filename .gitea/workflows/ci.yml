@@ -48,7 +48,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
+          # 不再用 setup-python 自带的 pip 缓存：它在 post 步骤里把 ~/.cache/pip 全部 zstd 压缩一遍
+          # （实测 1.8GB 轮子压了 15 分钟以上，job 因此从 8 分钟变成 33 分钟）。
+          # 改为 runner 侧把宿主 /vol1/pip-cache 挂到 ~/.cache/pip —— 零拷贝、跨 job 复用。
 
       - name: Create venv (隔离共享 toolcache)
         # act_runner 会把同一个 act-toolcache 卷挂进所有 job 容器的 /opt/hostedtoolcache，
@@ -186,7 +188,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "pip"
+          # 同 lint job：pip 缓存走 runner 挂载的宿主目录，不用 setup-python 的 cache（它太慢）
 
       - name: Create venv (隔离共享 toolcache)
         # act_runner 会把同一个 act-toolcache 卷挂进所有 job 容器的 /opt/hostedtoolcache，
