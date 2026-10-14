@@ -146,6 +146,57 @@ class FirstOrderRadioModel(EnergyModel):
         """计算数据聚合能耗"""
         return self._E_da * message_size
 
+    def calc_total_communication_energy(
+        self, tx_distance: float, rx_distance: float, message_size: int
+    ) -> float:
+        """计算总通信能耗（发送 + 接收）"""
+        return self.calc_transmit_energy(tx_distance, message_size) + self.calc_receive_energy(
+            message_size
+        )
+
+    def estimate_network_energy_budget(
+        self, n_nodes: int, n_rounds: int, avg_cluster_size: int, message_size: int
+    ) -> float:
+        """估算网络总能耗预算"""
+        p = 0.05
+        n_ch = int(n_nodes * p)
+        members_per_ch = n_nodes / n_ch - 1
+        energy_per_round = 0.0
+        for _ in range(n_rounds):
+            ch_bits = message_size * (1 + members_per_ch)
+            ch_energy = (
+                self.E_elec * ch_bits
+                + self._E_da * ch_bits
+                + self.calc_transmit_energy(self.d_threshold, ch_bits)
+            )
+            energy_per_round += n_ch * ch_energy
+            energy_per_round += (n_nodes - n_ch) * self.calc_transmit_energy(
+                self.d_threshold / 2, message_size
+            )
+        return energy_per_round
+
+    def to_dict(self) -> Dict[str, float]:
+        """转换为字典"""
+        return {
+            "E_elec": self.E_elec,
+            "epsilon_fs": self.epsilon_fs,
+            "epsilon_mp": self.epsilon_mp,
+            "d_threshold": self.d_threshold,
+            "E_da": self._E_da,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, float]) -> "FirstOrderRadioModel":
+        """从字典创建"""
+        return cls(**data)
+
+    def __repr__(self) -> str:
+        return (
+            f"FirstOrderRadioModel(E_elec={self.E_elec:.2e}, "
+            f"epsilon_fs={self.epsilon_fs:.2e}, epsilon_mp={self.epsilon_mp:.2e}, "
+            f"d_threshold={self.d_threshold:.1f}, E_da={self._E_da:.2e})"
+        )
+
 
 class Mica2Model(EnergyModel):
     """
