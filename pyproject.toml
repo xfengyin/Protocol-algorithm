@@ -59,8 +59,22 @@ all = [
 leach-sim = "main:main"
 leach-cli = "cli:main"
 
+# 打包布局必须与代码里的 import 路径一致：全仓 45 处写的是 `from src.xxx import ...`
+# （cli.py / main.py / examples/* / tests/*），所以 wheel 里的顶层包必须是 `src`
+# （而不是把 src/ 里面的目录平铺成顶层 ai/ models/ config/ ...）。
+# 2026-10-15 修：原来是 `where = ["src"]` ⇒ 装出来的包叫 ai/ models/ config/ ...，
+# `import src.models` 必然 ModuleNotFoundError；此前没炸只是因为从仓库根目录运行时
+# CWD 在 sys.path 里、恰好命中了仓库里的 src/（实测：仓库根目录 import src 成功且
+# src.__file__ 指向仓库，换到 /tmp 就报 No module named 'src'）。
+# 验证方式见 .gitea/workflows/ci.yml 的「Verify built wheel is importable」一步。
+[tool.setuptools]
+# 两个入口脚本不是 src/ 下的模块，必须显式声明，否则 wheel 里没有 main/cli
+# （而 [project.scripts] 的 leach-sim / leach-cli 指向它们）
+py-modules = ["main", "cli"]
+
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src", "src.*"]
 
 [tool.black]
 line-length = 100

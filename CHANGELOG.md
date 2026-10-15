@@ -109,11 +109,24 @@
   seaborn/tqdm/simpy/lightgbm/shap 代码里没有 import）、`--protocol leach-ee` → `leach_ee`
 - `config/config.yaml`：注释里把 `leach_ai` 从合法协议名中去掉（注册表里不存在）
 
+### Fixed (2026-10-15 第二轮)
+- **`BatchSimulator.compare_protocols` 的 `summary` 不再返回退化值**：`_aggregate_results` 里
+  `aggregated["summary"]` 此前初始化成 `{}` 后从未填充，于是 `lifetimes` 全为 0、
+  `best_protocol` 恒等于协议列表的第一个（`max()` 在相同 key 上返回第一个元素）。
+  这个错值会被 `examples/advanced_usage.py`（README 示例脚本表里列着）打印、
+  也被 `docs/tutorial.md` 演示，属于「公开输出恒错」，故本轮修掉：
+  `summary` 填 `network_lifetime` / `half_network_lifetime` / `avg_energy_consumption`
+  （各自是全部运行的均值，保持标量 —— `compare_protocols` 要把它们放进 `max(..., key=...)`）。
+  回归测试见 `tests/test_batch_simulator.py`（断言较优协议排在列表第二个时会被选中）
+- **打包布局修复**：`[tool.setuptools.packages.find]` 从 `where = ["src"]` 改为
+  `where = ["."], include = ["src", "src.*"]`，并用 `py-modules` 显式打进 `main.py` / `cli.py`。
+  此前 wheel 的顶层包是 `ai/ models/ config/ ...`（src/ 里的目录被平铺），而全仓 45 处写的是
+  `from src.xxx import ...` ⇒ `pip install .` 之后 `import src.models` 必然 `ModuleNotFoundError`；
+  没被发现是因为从仓库根目录运行时 CWD 在 `sys.path` 里、恰好命中仓库里的 `src/`。
+  CI 新增「Verify built wheel is importable (packaging)」一步：构建 wheel → 装进 venv →
+  **在非仓库目录**下 `import src, src.models, src.ai, src.simulation`，并断言导入到的不是仓库里的那份
+
 ### Known Issues (2026-10-15 登记，未修)
-- `BatchSimulator.compare_protocols` 的 `summary` 是退化值：`_aggregate_results` 里
-  `aggregated["summary"]` 初始化成 `{}` 后从未填充，于是 `lifetimes` 全为 0、
-  `best_protocol` 恒等于协议列表的第一个（`examples/advanced_usage.py --demo` 会打印这些 0）。
-  属于公开 API 输出变化，需要单独一轮修 + 由 CI 验证
 - `config/leach_ai.yaml` 的 `protocol: leach_ai` 未注册进 `LEACHRegistry`，按配置跑会报
   `Unknown protocol`；AI 路径需走 `examples/run_ai_leach.py`
 - `requirements.txt` 与 `pyproject.toml` 仍是两份清单（内容已对齐：pyproject 的 dependencies

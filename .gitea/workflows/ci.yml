@@ -225,9 +225,16 @@ jobs:
       matrix:
         # 两个腿 = requires-python ">=3.11" 这个**无上界声明**的下界与上界各要一份证据，
         # 不是「多测一遍」。删掉 3.12 等于「声明支持 3.12 但没有任何证据」——覆盖面比声明还窄。
-        # 成本的真正大头是「装依赖」而不是「跑测试」（实测安装 20+ 分钟、测试 3 分钟），
-        # 所以省成本的手段是删未用依赖 + torch 用 CPU 轮子，不是砍腿。
-        # 判据（写在代码里，便于复核）：两腿合计仍 >15 分钟就砍成单腿。
+        # 成本的真正大头是「装依赖」而不是「跑测试」，所以省成本的手段是删未用依赖 +
+        # torch 用 CPU 轮子，不是砍腿。
+        # 成本实测（n=2，含容器启动的墙钟；口径：槽位分钟 = 两腿相加，run 墙钟 = 较慢那条腿）：
+        #   改造前 3 次历史 run：3.11 腿 25.8/36.8/30.5 分、3.12 腿 23.9/30.7/28.9 分（槽位 50–62）
+        #   瘦身之后 run 10220：10.52 / 7.02 分（槽位 17.54）；run 10225：12.94 / 11.32 分（槽位 24.26）
+        #   —— 10225 偏慢有已识别的环境原因：它与 picoclaw 的两个 Go job 抢同一台 NAS 的 CPU
+        #   （requirements 安装 168s→208s 变慢，而 pytest 阶段 97.55s→85.29s 反而变快）。
+        # 结论：**保留两腿，不设自动触发** —— 「槽位分钟 >20 就砍」这类阈值在 n=2 上会因噪声翻转
+        #   （同一份代码 17.54 vs 24.26），而砍 3.12 腿不会让 run 早结束（两次都是 3.11 腿更慢，
+        #   其他仓的等待由 run 墙钟决定）。若将来在**安静环境**下连续两次槽位分钟 >20，再议。
         python-version: ["3.11", "3.12"]
 
     steps:
@@ -363,6 +370,23 @@ jobs:
             exit 1
           fi
           echo "negative control OK：pip-audit 对已知有漏洞的输入返回非零"
+
+      - name: Verify built wheel is importable (packaging)
+        # 打包布局门禁。全仓 45 处写的是 `from src.xxx import ...`，所以 wheel 的顶层包必须是 `src`。
+        # 修之前 pyproject 是 `packages.find where = ["src"]`，实测产物：
+        #   顶层条目 = ['ai','config','data','energy','leach','models','simulation','visualization']
+        #   —— 没有 src/，也没有 main.py / cli.py（那两个是 [project.scripts] 的入口，必须靠 py-modules 打进 wheel）
+        #   cd /tmp && python -c "import src"  ->  ModuleNotFoundError: No module named 'src'
+        #   从仓库根目录 import src            ->  成功（且 src.__file__ 指向仓库）
+        # 最后一条就是这个 bug 能活到现在的原因：**从仓库根目录跑永远看不到它**（CWD 在 sys.path 里）。
+        # 所以本步必须在**非仓库目录**下导入，并断言导入到的不是仓库里的那份，否则门禁会假绿。
+        if: matrix.python-version == '3.11'
+        run: |
+          .venv/bin/pip wheel . --no-deps -w /tmp/wheelhouse
+          ls -l /tmp/wheelhouse
+          .venv/bin/pip install --no-deps --force-reinstall /tmp/wheelhouse/*.whl
+          cd /tmp
+          python -c "import src, src.models, src.ai, src.simulation; p = src.__file__; assert '/workspace/' not in p, f'imported the repo copy, not the wheel: {p}'; print('wheel import OK:', p)"
 
       - name: Upload coverage report
         if: (matrix.python-version == '3.11') && always()
