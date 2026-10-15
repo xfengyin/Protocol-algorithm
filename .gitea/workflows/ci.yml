@@ -253,17 +253,52 @@ jobs:
           .venv/bin/pip install pip-audit==2.10.1
 
       - name: Run tests with coverage
+        # 覆盖率门禁（P4）：阈值不是拍出来的，是先量化再定的 ——
+        # 存量实测 = **1930 行中 858 行被覆盖**，即 lines-valid=1930 / lines-covered=858 /
+        # line-rate=0.4446（44.46%），来源是 CI 自己产出的 coverage.xml 工件：
+        # run 10185 与 run 10191 两次独立运行数字完全相同（858/1930），说明这个量是可复现的，
+        # 不是跑一次的偶然值。阈值取 floor(44.46) = **44**：
+        #   * 语义 = 「存量不许下降，新增未覆盖代码要还债」；
+        #   * 容差 = 0.46 个百分点 ≈ 9 条语句（0.46% × 1930）—— 改个变量名、加两行日志不会误伤，
+        #     但新增一个几十行的未测模块立刻红。
+        # 为什么不写进 pyproject.toml 的 [tool.coverage.report]：那样本地
+        # `pytest --cov=src tests/test_energy.py` 单跑一个文件也会因为「全仓覆盖率不足」而红，
+        # 是把 CI 判据塞进开发者日常路径；门禁放 CI 命令行，本地保持自由。
         if: matrix.python-version == '3.11'
         run: |
           .venv/bin/pytest tests/ \
             -v \
             --cov=src \
+            --cov-fail-under=44 \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
             --cov-report=term-missing:skip-covered \
             --junitxml=junit-report.xml \
             --numprocesses=auto \
             --durations=10
+
+      - name: Verify coverage gate can fail (negative control)
+        # 同 bandit / pip-audit：阈值型门禁最容易变成摆设（写个永远满意的数字就行），
+        # 所以必须证明「低于阈值 -> pytest 真的红」。做法：只跑一个测试文件（覆盖必然远低于 90%），
+        # 阈值临时设 90，断言 pytest 非零退出，且失败原因确实是覆盖率（不是测试自己失败）。
+        # 报告写进 /tmp，避免覆盖真实运行产出的 coverage.xml / htmlcov（它们随后要当工件上传）。
+        # 注：--cov-fail-under 的上限是 100（写 101 会被 argparse 直接拒，实测 exit 4）。
+        if: matrix.python-version == '3.11'
+        run: |
+          if .venv/bin/pytest tests/test_energy.py -q --cov=src --cov-fail-under=90 \
+               --cov-report=xml:/tmp/cov-negative-control.xml \
+               > /tmp/cov-negative-control.txt 2>&1; then
+            echo "::error::coverage 门禁失效：阈值 90 却没有让 pytest 失败"
+            tail -20 /tmp/cov-negative-control.txt
+            exit 1
+          fi
+          if ! grep -q "Required test coverage of 90% not reached" /tmp/cov-negative-control.txt; then
+            echo "::error::pytest 失败原因不是覆盖率门禁（这条断言防止把真实测试失败当成门禁生效）"
+            tail -20 /tmp/cov-negative-control.txt
+            exit 1
+          fi
+          echo "negative control OK：--cov-fail-under 会让 job 红"
+          grep "Required test coverage" /tmp/cov-negative-control.txt
 
       - name: Run tests without coverage
         if: matrix.python-version != '3.11'
