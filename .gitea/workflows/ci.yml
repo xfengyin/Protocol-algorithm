@@ -377,26 +377,66 @@ jobs:
 
       - name: Verify built wheel is importable (packaging)
         # 打包布局门禁。全仓 45 处写的是 `from src.xxx import ...`，所以 wheel 的顶层包必须是 `src`。
-        # 修之前 pyproject 是 `packages.find where = ["src"]`，实测产物：
-        #   顶层条目 = ['ai','config','data','energy','leach','models','simulation','visualization']
-        #   —— 没有 src/，也没有 main.py / cli.py（那两个是 [project.scripts] 的入口，必须靠 py-modules 打进 wheel）
-        #   cd /tmp && python -c "import src"  ->  ModuleNotFoundError: No module named 'src'
-        #   从仓库根目录 import src            ->  成功（且 src.__file__ 指向仓库）
-        # 最后一条就是这个 bug 能活到现在的原因：**从仓库根目录跑永远看不到它**（CWD 在 sys.path 里）。
-        # 所以本步必须在**非仓库目录**下导入，并断言导入到的不是仓库里的那份，否则门禁会假绿。
         #
-        # 守卫条件怎么写（第一版写错，CI 真的红了，值得记下来）：不能用「路径里没有 /workspace/」
-        # 这种启发式 —— 这台 runner 的 venv 就在 workspace 里面（<workspace>/.venv），
-        # 于是正确的 site-packages 命中被判成「仓库副本」。改成断言
-        # `src.__file__` 落在 `sysconfig.get_paths()['purelib']` 之下：与布局无关、与 CWD 无关，
-        # 而「从仓库根目录导入」时它必然不成立（那时命中的是 <repo>/src/__init__.py）⇒ 守卫真的能红。
+        # 修前（pyproject 里 packages.find where = ["src"]）拆开 wheel 看，顶层条目是
+        #   ['ai','config','data','energy','leach','models','simulation','visualization']  —— 没有 src/
+        #   __init__.py 是 ai/__init__.py、models/__init__.py…（src/ 里的目录被平铺）
+        #   也没有 main.py / cli.py（[project.scripts] 的入口，得靠 py-modules 才进 wheel）
+        # 修后：顶层条目 = ['cli.py','main.py','protocol_algorithm-1.0.0.dist-info','src']，
+        #   __init__.py 变成 src/__init__.py、src/ai/__init__.py…
+        #
+        # 为什么必须在仓库之外导入：从仓库根目录跑时 CWD 在 sys.path 里、且排在 site-packages 之前，
+        # `import src` 会命中仓库里的 src/（实测 src.__file__ = <repo>/src/__init__.py），
+        # 于是这个缺陷永远看不到。所以本步：
+        #   ① 产物落到仓库外（/tmp/wheelhouse）；
+        #   ② cd /tmp 并用 `-I`（隔离模式：忽略 PYTHONPATH 与 user site）；
+        #   ③ **把「环境是否干净」本身做成断言**：仓库根不允许出现在 sys.path 里；
+        #   ④ 断言导入到的 src 在 venv 的 site-packages 下、且不在 <repo>/src 下；
+        #   ⑤ 拆开 wheel 打印顶层条目并断言 src 与两个入口模块都在。
+        # ④⑤ 一起构成闭环：少了 ⑤ 就分不清「wheel 装错了」和「导入被 CWD 劫持了」。
         if: matrix.python-version == '3.11'
         run: |
-          .venv/bin/pip wheel . --no-deps -w /tmp/wheelhouse
+          set -e
+          REPO_ROOT="$PWD"
+          .venv/bin/pip install -q build
+          .venv/bin/python -m build --wheel -o /tmp/wheelhouse .
           ls -l /tmp/wheelhouse
           .venv/bin/pip install --no-deps --force-reinstall /tmp/wheelhouse/*.whl
           cd /tmp
-          python -c "import pathlib, sysconfig, src, src.models, src.ai, src.simulation; p = pathlib.Path(src.__file__).resolve(); site = pathlib.Path(sysconfig.get_paths()['purelib']).resolve(); assert p.is_relative_to(site), f'imported something outside the venv site-packages (仓库里的 src/ 又被 CWD 命中了?): {p}'; print('wheel import OK:', p)"
+          REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -I - <<'PY'
+          import glob
+          import os
+          import pathlib
+          import sys
+          import sysconfig
+          import zipfile
+
+          repo = pathlib.Path(os.environ["REPO_ROOT"]).resolve()
+          print("sys.path[0:3] =", sys.path[:3])
+          # ③ 环境干净本身是被检查的东西：仓库根在 sys.path 里就会把 import 劫持到仓库副本
+          leaked = [p for p in sys.path if pathlib.Path(p or ".").resolve() == repo]
+          assert not leaked, f"仓库根混进 sys.path：{leaked}"
+          print("隔离检查 OK：仓库根不在 sys.path")
+
+          import src  # noqa: E402  必须晚于隔离断言
+          import src.ai  # noqa: E402,F401
+          import src.energy  # noqa: E402,F401
+          import src.models  # noqa: E402,F401
+          import src.simulation  # noqa: E402,F401
+
+          p = pathlib.Path(src.__file__).resolve()
+          site = pathlib.Path(sysconfig.get_paths()["purelib"]).resolve()
+          assert p.is_relative_to(site), f"导入的不是 venv site-packages 那份：{p}"
+          assert not p.is_relative_to(repo / "src"), f"导入到了仓库里的 src/：{p}"
+
+          # ⑤ 拆开 wheel 看看到底装了什么（分得清「wheel 错」与「导入被劫持」）
+          wheel = glob.glob("/tmp/wheelhouse/*.whl")[0]
+          tops = sorted({n.split("/")[0] for n in zipfile.ZipFile(wheel).namelist()})
+          print("wheel 顶层条目:", tops)
+          assert "src" in tops, f"wheel 里没有顶层 src/（正是修前那个缺陷）：{tops}"
+          assert "main.py" in tops and "cli.py" in tops, f"入口脚本没进 wheel：{tops}"
+          print("wheel import OK:", p)
+          PY
 
       - name: Upload coverage report
         if: (matrix.python-version == '3.11') && always()
