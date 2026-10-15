@@ -17,22 +17,21 @@
 
 from __future__ import annotations
 
-import sys
 import argparse
+import sys
 import time
-import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 # 添加项目根目录到 Python 路径
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.network import Network
 from src.energy.radio_model import FirstOrderRadioModel
+from src.models.network import Network
 from src.visualization.comparison import ComparisonPlotter
-from src.visualization.metrics_plots import MetricsPlotter
-
 
 # =========================================================================
 # 协议配置
@@ -64,7 +63,7 @@ def run_protocol_comparison(
     protocols: Optional[List[str]] = None,
     n_runs: int = 1,
     seed: int = 42,
-    output_dir: str = "results/comparison"
+    output_dir: str = "results/comparison",
 ) -> Dict[str, Any]:
     """
     运行多协议对比实验
@@ -118,14 +117,11 @@ def run_protocol_comparison(
                 base_station_pos=(50, 50),
                 energy_model=energy_model,
                 initial_energy=0.5,
-                seed=run_seed
+                seed=run_seed,
             )
 
             # 运行仿真
-            results = network.simulate_network(
-                rounds=rounds,
-                protocol_name=protocol
-            )
+            results = network.simulate_network(rounds=rounds, protocol_name=protocol)
 
             elapsed = time.time() - start_time
             results["execution_time"] = elapsed
@@ -150,12 +146,7 @@ def run_protocol_comparison(
     print("生成对比图表和报告")
     print(f"{'=' * 70}")
 
-    _generate_comparison_plots(
-        all_results,
-        protocols,
-        summary,
-        output_dir
-    )
+    _generate_comparison_plots(all_results, protocols, summary, output_dir)
 
     return {
         "protocol_results": all_results,
@@ -163,10 +154,7 @@ def run_protocol_comparison(
     }
 
 
-def _compute_summary(
-    all_results: Dict[str, List[Dict]],
-    n_nodes: int
-) -> Dict[str, Dict[str, Any]]:
+def _compute_summary(all_results: Dict[str, List[Dict]], n_nodes: int) -> Dict[str, Dict[str, Any]]:
     """
     计算汇总统计
 
@@ -214,7 +202,7 @@ def _generate_comparison_plots(
     all_results: Dict[str, List[Dict]],
     protocols: List[str],
     summary: Dict[str, Dict],
-    output_dir: str
+    output_dir: str,
 ):
     """
     生成对比图表
@@ -245,14 +233,12 @@ def _generate_comparison_plots(
         results_list=results_list,
         protocol_names=protocol_names,
         save_path=str(output_path / "protocol_comparison.png"),
-        show=False
+        show=False,
     )
 
     # 对比报告
     plotter.generate_comparison_report(
-        results_list=results_list,
-        protocol_names=protocol_names,
-        output_dir=output_dir
+        results_list=results_list, protocol_names=protocol_names, output_dir=output_dir
     )
 
     # 绘制能量对比柱状图
@@ -261,11 +247,7 @@ def _generate_comparison_plots(
     print(f"所有图表已保存到 {output_dir}/")
 
 
-def _plot_energy_bar_chart(
-    summary: Dict[str, Dict],
-    protocols: List[str],
-    output_dir: str
-):
+def _plot_energy_bar_chart(summary: Dict[str, Dict], protocols: List[str], output_dir: str):
     """
     绘制能量和生命周期对比柱状图
 
@@ -275,11 +257,10 @@ def _plot_energy_bar_chart(
         output_dir: 输出目录
     """
     import matplotlib.pyplot as plt
-    import numpy as np
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
     names = [PROTOCOLS[p]["name"] for p in protocols]
 
     # 网络生命周期
@@ -287,27 +268,27 @@ def _plot_energy_bar_chart(
     means = [summary[p]["network_lifetime"]["mean"] for p in protocols]
     stds = [summary[p]["network_lifetime"]["std"] for p in protocols]
 
-    ax1.bar(names, means, yerr=stds, color=colors[:len(protocols)],
-            alpha=0.8, capsize=5)
-    ax1.set_ylabel('Rounds')
-    ax1.set_title('Network Lifetime (Mean ± Std)')
-    ax1.tick_params(axis='x', rotation=30)
-    ax1.grid(axis='y', alpha=0.3)
+    ax1.bar(names, means, yerr=stds, color=colors[: len(protocols)], alpha=0.8, capsize=5)
+    ax1.set_ylabel("Rounds")
+    ax1.set_title("Network Lifetime (Mean ± Std)")
+    ax1.tick_params(axis="x", rotation=30)
+    ax1.grid(axis="y", alpha=0.3)
 
     # 最终剩余能量
     ax2 = axes[1]
     energy_means = [summary[p]["final_energy"]["mean"] for p in protocols]
     energy_stds = [summary[p]["final_energy"]["std"] for p in protocols]
 
-    ax2.bar(names, energy_means, yerr=energy_stds,
-            color=colors[:len(protocols)], alpha=0.8, capsize=5)
-    ax2.set_ylabel('Energy (J)')
-    ax2.set_title('Final Residual Energy (Mean ± Std)')
-    ax2.tick_params(axis='x', rotation=30)
-    ax2.grid(axis='y', alpha=0.3)
+    ax2.bar(
+        names, energy_means, yerr=energy_stds, color=colors[: len(protocols)], alpha=0.8, capsize=5
+    )
+    ax2.set_ylabel("Energy (J)")
+    ax2.set_title("Final Residual Energy (Mean ± Std)")
+    ax2.tick_params(axis="x", rotation=30)
+    ax2.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"{output_dir}/energy_bar_chart.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{output_dir}/energy_bar_chart.png", dpi=150, bbox_inches="tight")
     plt.close()
 
 
@@ -323,7 +304,9 @@ def print_summary_table(summary: Dict[str, Dict], protocols: List[str]):
     print("对比结果汇总")
     print("=" * 80)
 
-    header = f"{'协议':<25} {'平均生命周期':>12} {'标准差':>10} {'半生命周期':>12} {'最终能量(J)':>12}"
+    header = (
+        f"{'协议':<25} {'平均生命周期':>12} {'标准差':>10} {'半生命周期':>12} {'最终能量(J)':>12}"
+    )
     print(header)
     print("-" * 80)
 
@@ -343,11 +326,7 @@ def print_summary_table(summary: Dict[str, Dict], protocols: List[str]):
     print("排名 (按平均网络生命周期):")
     print("-" * 80)
 
-    ranked = sorted(
-        protocols,
-        key=lambda p: summary[p]["network_lifetime"]["mean"],
-        reverse=True
-    )
+    ranked = sorted(protocols, key=lambda p: summary[p]["network_lifetime"]["mean"], reverse=True)
 
     for rank, p in enumerate(ranked, 1):
         name = PROTOCOLS[p]["name"]
@@ -370,44 +349,21 @@ def parse_args() -> argparse.Namespace:
 
   # 只对比特定协议, 重复运行 3 次
   python examples/compare_variants.py --protocols leach leach-c --n-runs 3
-        """
+        """,
     )
 
+    parser.add_argument("--n-nodes", type=int, default=100, help="节点数量 (默认: 100)")
+    parser.add_argument("--rounds", type=int, default=1000, help="仿真轮数 (默认: 1000)")
     parser.add_argument(
-        "--n-nodes",
-        type=int,
-        default=100,
-        help="节点数量 (默认: 100)"
+        "--protocols", nargs="+", default=None, help="要对比的协议列表 (默认: 全部)"
     )
-    parser.add_argument(
-        "--rounds",
-        type=int,
-        default=1000,
-        help="仿真轮数 (默认: 1000)"
-    )
-    parser.add_argument(
-        "--protocols",
-        nargs="+",
-        default=None,
-        help="要对比的协议列表 (默认: 全部)"
-    )
-    parser.add_argument(
-        "--n-runs",
-        type=int,
-        default=1,
-        help="每个协议的重复运行次数 (默认: 1)"
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="随机种子 (默认: 42)"
-    )
+    parser.add_argument("--n-runs", type=int, default=1, help="每个协议的重复运行次数 (默认: 1)")
+    parser.add_argument("--seed", type=int, default=42, help="随机种子 (默认: 42)")
     parser.add_argument(
         "--output",
         type=str,
         default="results/comparison",
-        help="结果输出目录 (默认: results/comparison)"
+        help="结果输出目录 (默认: results/comparison)",
     )
 
     return parser.parse_args()
@@ -423,7 +379,7 @@ if __name__ == "__main__":
         protocols=args.protocols,
         n_runs=args.n_runs,
         seed=args.seed,
-        output_dir=args.output
+        output_dir=args.output,
     )
 
     # 打印汇总表格

@@ -22,29 +22,26 @@
 
 from __future__ import annotations
 
-import sys
 import json
+import sys
 import time
-import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 # 添加项目根目录到 Python 路径
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.network import Network
 from src.energy.radio_model import FirstOrderRadioModel
+from src.models.network import Network
 from src.visualization.metrics_plots import MetricsPlotter
-from src.visualization.comparison import ComparisonPlotter
-
 
 # =========================================================================
 # 论文实验参数
 # =========================================================================
 
 # Heinzelman 2000 论文中的标准参数
-PAPER_PARAMS = {
+PAPER_PARAMS: Dict[str, Any] = {
     "n_nodes": 100,
     "area": (0, 100, 0, 100),
     "base_station_pos": (50, 50),
@@ -60,8 +57,7 @@ PAPER_PARAMS = {
 
 
 def reproduce_network_lifetime(
-    rounds: int = 5000,
-    output_dir: str = "results/reproduction/lifetime"
+    rounds: int = 5000, output_dir: str = "results/reproduction/lifetime"
 ) -> Dict[str, Any]:
     """
     复现论文图 4: 网络生命周期 (Alive Nodes vs Rounds)
@@ -99,16 +95,15 @@ def reproduce_network_lifetime(
         seed=PAPER_PARAMS["seed"],
     )
 
-    print(f"参数: n={PAPER_PARAMS['n_nodes']}, E0={PAPER_PARAMS['initial_energy']}J, "
-          f"area={PAPER_PARAMS['area'][1]}x{PAPER_PARAMS['area'][3]}m")
+    print(
+        f"参数: n={PAPER_PARAMS['n_nodes']}, E0={PAPER_PARAMS['initial_energy']}J, "
+        f"area={PAPER_PARAMS['area'][1]}x{PAPER_PARAMS['area'][3]}m"
+    )
     print(f"轮数: {rounds}")
     print()
 
     start_time = time.time()
-    results = network.simulate_network(
-        rounds=rounds,
-        protocol_name="leach"
-    )
+    results = network.simulate_network(rounds=rounds, protocol_name="leach")
     elapsed = time.time() - start_time
 
     print(f"仿真耗时: {elapsed:.2f}s")
@@ -139,9 +134,7 @@ def reproduce_network_lifetime(
     # 可视化
     plotter = MetricsPlotter()
     plotter.plot_network_lifetime(
-        results,
-        save_path=str(output_path / "network_lifetime.png"),
-        show=False
+        results, save_path=str(output_path / "network_lifetime.png"), show=False
     )
 
     print(f"结果已保存到 {output_dir}/")
@@ -150,8 +143,7 @@ def reproduce_network_lifetime(
 
 
 def reproduce_energy_consumption(
-    rounds: int = 3000,
-    output_dir: str = "results/reproduction/energy"
+    rounds: int = 3000, output_dir: str = "results/reproduction/energy"
 ) -> Dict[str, Any]:
     """
     复现论文图 5: 能量消耗分析
@@ -193,10 +185,7 @@ def reproduce_energy_consumption(
     print()
 
     start_time = time.time()
-    results = network.simulate_network(
-        rounds=rounds,
-        protocol_name="leach"
-    )
+    results = network.simulate_network(rounds=rounds, protocol_name="leach")
     elapsed = time.time() - start_time
 
     print(f"仿真耗时: {elapsed:.2f}s")
@@ -205,7 +194,7 @@ def reproduce_energy_consumption(
     # 能量分析
     initial_total = PAPER_PARAMS["n_nodes"] * PAPER_PARAMS["initial_energy"]
     consumed = initial_total - results["final_energy"]
-    print(f"能量分析:")
+    print("能量分析:")
     print(f"  - 初始总能量: {initial_total:.2f} J")
     print(f"  - 剩余总能量: {results['final_energy']:.4f} J")
     print(f"  - 消耗总能量: {consumed:.4f} J")
@@ -222,9 +211,7 @@ def reproduce_energy_consumption(
     # 可视化
     plotter = MetricsPlotter()
     plotter.plot_energy_consumption(
-        results,
-        save_path=str(output_path / "energy_consumption.png"),
-        show=False
+        results, save_path=str(output_path / "energy_consumption.png"), show=False
     )
 
     print(f"结果已保存到 {output_dir}/")
@@ -235,7 +222,7 @@ def reproduce_energy_consumption(
 def reproduce_probability_sweep(
     probabilities: Optional[List[float]] = None,
     rounds: int = 3000,
-    output_dir: str = "results/reproduction/probability_sweep"
+    output_dir: str = "results/reproduction/probability_sweep",
 ) -> Dict[str, Any]:
     """
     复现论文中不同簇头概率 p 对性能的影响
@@ -263,7 +250,7 @@ def reproduce_probability_sweep(
     print(f"仿真轮数: {rounds}")
     print()
 
-    sweep_results = {}
+    sweep_results: Dict[str, Dict[str, Any]] = {}
 
     for p in probabilities:
         print(f"\n测试 p = {p:.2f}...")
@@ -285,10 +272,7 @@ def reproduce_probability_sweep(
         )
 
         start_time = time.time()
-        results = network.simulate_network(
-            rounds=rounds,
-            protocol_name="leach"
-        )
+        results = network.simulate_network(rounds=rounds, protocol_name="leach")
         elapsed = time.time() - start_time
 
         sweep_results[str(p)] = {
@@ -307,10 +291,7 @@ def reproduce_probability_sweep(
         )
 
     # 找出最优概率
-    best_p = max(
-        sweep_results.keys(),
-        key=lambda k: sweep_results[k]["network_lifetime"]
-    )
+    best_p = max(sweep_results.keys(), key=lambda k: sweep_results[k]["network_lifetime"])
     best_result = sweep_results[best_p]
 
     print(f"\n{'=' * 70}")
@@ -332,10 +313,7 @@ def reproduce_probability_sweep(
     return sweep_results
 
 
-def _plot_probability_sweep(
-    sweep_results: Dict[str, Any],
-    output_dir: str
-):
+def _plot_probability_sweep(sweep_results: Dict[str, Any], output_dir: str):
     """
     绘制概率扫描结果图
 
@@ -347,44 +325,43 @@ def _plot_probability_sweep(
 
     probabilities = [sweep_results[k]["probability"] for k in sorted(sweep_results.keys())]
     lifetimes = [sweep_results[k]["network_lifetime"] for k in sorted(sweep_results.keys())]
-    half_lifetimes = [sweep_results[k]["half_network_lifetime"] for k in sorted(sweep_results.keys())]
+    half_lifetimes = [
+        sweep_results[k]["half_network_lifetime"] for k in sorted(sweep_results.keys())
+    ]
     energies = [sweep_results[k]["final_energy"] for k in sorted(sweep_results.keys())]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
     # 网络生命周期
     ax1 = axes[0]
-    ax1.plot(probabilities, lifetimes, 'bo-', linewidth=2, markersize=8)
-    ax1.set_xlabel('Cluster Head Probability (p)')
-    ax1.set_ylabel('Network Lifetime (Rounds)')
-    ax1.set_title('Network Lifetime vs Probability')
+    ax1.plot(probabilities, lifetimes, "bo-", linewidth=2, markersize=8)
+    ax1.set_xlabel("Cluster Head Probability (p)")
+    ax1.set_ylabel("Network Lifetime (Rounds)")
+    ax1.set_title("Network Lifetime vs Probability")
     ax1.grid(True, alpha=0.3)
 
     # 半生命周期
     ax2 = axes[1]
-    ax2.plot(probabilities, half_lifetimes, 'rs-', linewidth=2, markersize=8)
-    ax2.set_xlabel('Cluster Head Probability (p)')
-    ax2.set_ylabel('Half Network Lifetime (Rounds)')
-    ax2.set_title('Half Lifetime vs Probability')
+    ax2.plot(probabilities, half_lifetimes, "rs-", linewidth=2, markersize=8)
+    ax2.set_xlabel("Cluster Head Probability (p)")
+    ax2.set_ylabel("Half Network Lifetime (Rounds)")
+    ax2.set_title("Half Lifetime vs Probability")
     ax2.grid(True, alpha=0.3)
 
     # 最终剩余能量
     ax3 = axes[2]
-    ax3.plot(probabilities, energies, 'g^-', linewidth=2, markersize=8)
-    ax3.set_xlabel('Cluster Head Probability (p)')
-    ax3.set_ylabel('Final Energy (J)')
-    ax3.set_title('Final Energy vs Probability')
+    ax3.plot(probabilities, energies, "g^-", linewidth=2, markersize=8)
+    ax3.set_xlabel("Cluster Head Probability (p)")
+    ax3.set_ylabel("Final Energy (J)")
+    ax3.set_title("Final Energy vs Probability")
     ax3.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"{output_dir}/probability_sweep.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{output_dir}/probability_sweep.png", dpi=150, bbox_inches="tight")
     plt.close()
 
 
-def run_all_experiments(
-    rounds: int = 3000,
-    output_dir: str = "results/reproduction"
-):
+def run_all_experiments(rounds: int = 3000, output_dir: str = "results/reproduction"):
     """
     运行所有复现实验
 
@@ -399,36 +376,26 @@ def run_all_experiments(
 
     # 实验 1: 网络生命周期
     lifetime_results = reproduce_network_lifetime(
-        rounds=rounds,
-        output_dir=f"{output_dir}/lifetime"
+        rounds=rounds, output_dir=f"{output_dir}/lifetime"
     )
 
     # 实验 2: 能量消耗
-    energy_results = reproduce_energy_consumption(
-        rounds=rounds,
-        output_dir=f"{output_dir}/energy"
-    )
+    energy_results = reproduce_energy_consumption(rounds=rounds, output_dir=f"{output_dir}/energy")
 
     # 实验 3: 概率扫描
     sweep_results = reproduce_probability_sweep(
-        rounds=rounds,
-        output_dir=f"{output_dir}/probability_sweep"
+        rounds=rounds, output_dir=f"{output_dir}/probability_sweep"
     )
 
     # 生成总报告
-    _generate_reproduction_report(
-        lifetime_results,
-        energy_results,
-        sweep_results,
-        output_dir
-    )
+    _generate_reproduction_report(lifetime_results, energy_results, sweep_results, output_dir)
 
 
 def _generate_reproduction_report(
     lifetime_results: Dict,
     energy_results: Dict,
-    sweep_results: Dict,
-    output_dir: str
+    sweep_results: Dict[str, Dict[str, Any]],
+    output_dir: str,
 ):
     """
     生成复现实验总报告
@@ -470,10 +437,7 @@ def _generate_reproduction_report(
     report.append(f"- 最终剩余能量: {energy_results['final_energy']:.4f} J")
     report.append("")
     report.append("### 3. 最优簇头概率")
-    best_p = max(
-        sweep_results.keys(),
-        key=lambda k: sweep_results[k]["network_lifetime"]
-    )
+    best_p = max(sweep_results.keys(), key=lambda k: sweep_results[k]["network_lifetime"])
     report.append(f"- 最优概率: p = {best_p}")
     report.append(f"- 对应生命周期: {sweep_results[best_p]['network_lifetime']} 轮")
     report.append("")
@@ -498,19 +462,14 @@ def parse_args():
         type=str,
         default="all",
         choices=["lifetime", "energy", "probability", "all"],
-        help="要运行的实验 (默认: all)"
+        help="要运行的实验 (默认: all)",
     )
-    parser.add_argument(
-        "--rounds",
-        type=int,
-        default=3000,
-        help="仿真轮数 (默认: 3000)"
-    )
+    parser.add_argument("--rounds", type=int, default=3000, help="仿真轮数 (默认: 3000)")
     parser.add_argument(
         "--output",
         type=str,
         default="results/reproduction",
-        help="结果输出目录 (默认: results/reproduction)"
+        help="结果输出目录 (默认: results/reproduction)",
     )
 
     return parser.parse_args()

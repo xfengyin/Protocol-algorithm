@@ -75,21 +75,23 @@ jobs:
           # 缺 types-PyYAML 时 mypy 会报 src/config/validator.py:10 import-untyped。
           .venv/bin/pip install types-PyYAML==6.0.12.20240311
 
+      # 覆盖范围：src/ tests/ examples/ + 两个入口脚本 + 包根。此前只查 src/ 与 tests/，
+      # examples/（2184 行，README 当公开用法推荐给用户）和 main.py / cli.py 完全不受门禁保护。
       - name: Check Black formatting
         run: |
-          .venv/bin/black --check --diff src/ tests/
+          .venv/bin/black --check --diff src/ tests/ examples/ main.py cli.py __init__.py
 
       - name: Check import sorting
         run: |
-          .venv/bin/isort --check-only --diff src/ tests/
+          .venv/bin/isort --check-only --diff src/ tests/ examples/ main.py cli.py __init__.py
 
       - name: Run flake8
+        # 规则只留一份：.flake8（flake8 从当前目录自动发现它）。
+        # 以前命令行又把 max-line-length / extend-ignore / per-file-ignores 重复写了一遍，
+        # 于是同一套规则有两处真相源 —— 改一处漏一处就会出现「本地绿、CI 红」（88 vs 100 就这么来过）。
+        # 这里只传路径（fl8 不带路径会递归扫到 .venv/）和 --statistics（报告形式，不是规则）。
         run: |
-          .venv/bin/flake8 src/ tests/ \
-            --max-line-length=100 \
-            --extend-ignore=E203,W503 \
-            --per-file-ignores="__init__.py:F401" \
-            --statistics
+          .venv/bin/flake8 src/ tests/ examples/ main.py cli.py __init__.py --statistics
 
       - name: Run mypy type check
         # 硬门禁（2026-10-15）：此前是 `continue-on-error: true`，注释自述「存量 47 个类型错误」。
@@ -98,7 +100,7 @@ jobs:
         # --ignore-missing-imports 让它们都是 Any）：修法是显式 float(...) 或显式标注容器类型，
         # 不改数值行为、不改公开签名。
         run: |
-          .venv/bin/mypy src/ tests/ main.py cli.py __init__.py --ignore-missing-imports \
+          .venv/bin/mypy src/ tests/ examples/ main.py cli.py __init__.py --ignore-missing-imports \
             --no-strict-optional \
             --warn-unused-ignores \
             --explicit-package-bases
