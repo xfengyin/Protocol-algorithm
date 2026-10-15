@@ -287,6 +287,10 @@ jobs:
         #   * 容差 = 0.46 个百分点 ≈ 9 条语句（0.46% × 1930）—— 改个变量名、加两行日志不会误伤，
         #     但新增一个几十行的未测模块立刻红。
         # 2026-10-15 复测（run 10220 / task 1482）：TOTAL 1938 行、覆盖 938 行 = 48.40%。
+        # 2026-10-15 第二轮（run 10232 / task 1501）：51 tests 通过后 TOTAL 覆盖率 50.82%
+        #   （+2.4pp：这一轮新增的 tests/test_batch_simulator.py 开始真正执行
+        #    _aggregate_results 的聚合分支 —— 也就是说涨的这部分是**真覆盖**，不是导入即覆盖）。
+        #   阈值仍保持 44：地板是棘轮，抬阈值要单独一轮，不在本次改动范围。
         # 涨的约 4pp 里主要来自 src/config/validator.py —— trainer 新增了一条到 config 的
         # import 边，模块级语句因此被执行（**导入即覆盖**，不等于行为被测）。所以阈值**不动**：
         # 拿"导入带来的虚高"去抬高门槛，等于把没测的代码当成测过的。
@@ -380,13 +384,19 @@ jobs:
         #   从仓库根目录 import src            ->  成功（且 src.__file__ 指向仓库）
         # 最后一条就是这个 bug 能活到现在的原因：**从仓库根目录跑永远看不到它**（CWD 在 sys.path 里）。
         # 所以本步必须在**非仓库目录**下导入，并断言导入到的不是仓库里的那份，否则门禁会假绿。
+        #
+        # 守卫条件怎么写（第一版写错，CI 真的红了，值得记下来）：不能用「路径里没有 /workspace/」
+        # 这种启发式 —— 这台 runner 的 venv 就在 workspace 里面（<workspace>/.venv），
+        # 于是正确的 site-packages 命中被判成「仓库副本」。改成断言
+        # `src.__file__` 落在 `sysconfig.get_paths()['purelib']` 之下：与布局无关、与 CWD 无关，
+        # 而「从仓库根目录导入」时它必然不成立（那时命中的是 <repo>/src/__init__.py）⇒ 守卫真的能红。
         if: matrix.python-version == '3.11'
         run: |
           .venv/bin/pip wheel . --no-deps -w /tmp/wheelhouse
           ls -l /tmp/wheelhouse
           .venv/bin/pip install --no-deps --force-reinstall /tmp/wheelhouse/*.whl
           cd /tmp
-          python -c "import src, src.models, src.ai, src.simulation; p = src.__file__; assert '/workspace/' not in p, f'imported the repo copy, not the wheel: {p}'; print('wheel import OK:', p)"
+          python -c "import pathlib, sysconfig, src, src.models, src.ai, src.simulation; p = pathlib.Path(src.__file__).resolve(); site = pathlib.Path(sysconfig.get_paths()['purelib']).resolve(); assert p.is_relative_to(site), f'imported something outside the venv site-packages (仓库里的 src/ 又被 CWD 命中了?): {p}'; print('wheel import OK:', p)"
 
       - name: Upload coverage report
         if: (matrix.python-version == '3.11') && always()
