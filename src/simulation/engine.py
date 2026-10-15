@@ -6,7 +6,7 @@ import itertools
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -76,7 +76,7 @@ class ParallelSimulationEngine:
         param_values = list(param_grid.values())
 
         for params in itertools.product(*param_values):
-            config_dict = {
+            config_dict: Dict[str, Any] = {
                 "n_nodes": base_config.n_nodes,
                 "area": base_config.area,
                 "base_station_pos": base_config.base_station_pos,
@@ -176,7 +176,7 @@ class ParallelSimulationEngine:
         self,
         results: List[SimulationResult],
         param_names: List[str],
-        param_values: Tuple[Tuple[Any, ...], ...],
+        param_values: Sequence[Sequence[Any]],
     ) -> Dict[str, Any]:
         """
         聚合结果
@@ -189,7 +189,7 @@ class ParallelSimulationEngine:
         Returns:
             聚合后的结果
         """
-        aggregated = {
+        aggregated: Dict[str, Any] = {
             "summary": {},
             "by_params": {},
             "raw_results": [r.__dict__ for r in results],
@@ -322,7 +322,7 @@ class BatchSimulator:
         """
         protocols = protocols or ["leach", "leach_c", "leach_ee", "leach_m"]
 
-        comparison = {"protocols": {}, "summary": {}}
+        comparison: Dict[str, Any] = {"protocols": {}, "summary": {}}
 
         for protocol in protocols:
             config = SimulationConfig(
@@ -376,4 +376,5 @@ class BatchSimulator:
         import json
 
         with open(input_path, "r") as f:
-            return json.load(f)
+            loaded: Dict[str, Any] = json.load(f)
+            return loaded

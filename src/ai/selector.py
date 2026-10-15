@@ -23,7 +23,9 @@ class AIClusterSelector(ABC):
         Args:
             model_path: 模型保存路径
         """
-        self.model = None
+        # 子类会分别在 _ensure_model/_load_model 里换成 sklearn / torch 的模型对象，
+        # 所以这里必须声明成 Any —— 写 None 会让 mypy 把 self.model 定死为 NoneType。
+        self.model: Any = None
         self.model_path = model_path
         self.is_trained = False
         self.feature_names = [
@@ -80,6 +82,17 @@ class AIClusterSelector(ABC):
     @abstractmethod
     def _load_model(self, path: Path) -> None:
         """加载模型实现"""
+
+    def get_feature_importance(self) -> Dict[str, float]:
+        """
+        特征重要性
+
+        基类给出默认实现（不是每个选择器都能算重要性），sklearn / pytorch 两个子类各自覆盖。
+        AITrainer.get_feature_importance 依赖它，所以它必须出现在基类契约里 ——
+        之前只定义在子类，trainer 里那句调用在类型上就是「未声明的方法」。
+        用默认实现而不是 abstractmethod：抽象方法会让外部已有的子类无法再实例化（公开 API 破坏）。
+        """
+        return {}
 
     def select_cluster_heads(
         self, network: Network, n_clusters: Optional[int] = None, **kwargs

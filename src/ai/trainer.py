@@ -9,6 +9,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from .pytorch_selector import PyTorchClusterSelector
+from .selector import AIClusterSelector
 from .sklearn_selector import SklearnClusterSelector
 
 
@@ -24,6 +25,9 @@ class AITrainer:
             **kwargs: 模型参数
         """
         self.model_type = model_type
+        # 两条分支产生不同子类，统一按基类标注：原来 mypy 按第一条分支定死成
+        # SklearnClusterSelector，第二条就成了 incompatible assignment。
+        self.selector: AIClusterSelector
 
         if model_type == "sklearn":
             self.selector = SklearnClusterSelector(**kwargs)
@@ -65,9 +69,12 @@ class AITrainer:
         Returns:
             X_train, X_test, y_train, y_test
         """
-        return train_test_split(
+        # 显式解包再返回：train_test_split 来自未带类型标注的 sklearn，
+        # 直接 return 会被 mypy 当成 Any 从而报 no-any-return。
+        X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=random_state, stratify=y  # 分层采样
         )
+        return X_train, X_test, y_train, y_test
 
     def train(self, X: np.ndarray, y: np.ndarray, epochs: int = 100, **kwargs) -> Dict[str, Any]:
         """

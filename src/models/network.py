@@ -254,7 +254,7 @@ class Network:
         nearest_ch_indices = np.argmin(distances, axis=1)
         min_distances = distances[np.arange(len(distances)), nearest_ch_indices]
 
-        ch_member_counts = {}
+        ch_member_counts: Dict[int, int] = {}
 
         for i, node in enumerate(alive_nodes_list):
             nearest_idx = nearest_ch_indices[i]
@@ -373,7 +373,9 @@ class Network:
         """
         self.reset()
 
-        results = {
+        # 值类型是混合的（list + 后面 update 进去的 int），必须显式 Any，
+        # 否则 mypy 按字面量推断成 Dict[str, list[Any]]，后面塞进去的 int 全报 dict-item。
+        results: Dict[str, Any] = {
             "rounds": [],
             "alive_nodes": [],
             "dead_nodes": [],

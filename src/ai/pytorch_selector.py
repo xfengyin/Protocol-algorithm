@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -65,8 +65,10 @@ class PyTorchClusterSelector(AIClusterSelector):
         self.learning_rate = learning_rate
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.model: Optional[MLPClassifier] = None
-        self.optimizer = None
+        # 类型由基类 AIClusterSelector 声明（Any）：这里不重复收窄，
+        # 否则 optimizer/model 的 None 分支会让 mypy 把属性定死为 NoneType。
+        self.model = None
+        self.optimizer: Any = None
         self.criterion = nn.BCELoss()
 
     def _ensure_model(self, input_dim: int):

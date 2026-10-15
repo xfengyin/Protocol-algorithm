@@ -71,6 +71,9 @@ jobs:
         run: |
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/pip install black==24.3.0 isort==5.13.2 flake8==7.0.0 mypy==1.9.0
+          # 只有类型存根，不是运行时依赖：本 job 不装 requirements.txt，
+          # 缺 types-PyYAML 时 mypy 会报 src/config/validator.py:10 import-untyped。
+          .venv/bin/pip install types-PyYAML==6.0.12.20240311
 
       - name: Check Black formatting
         run: |
@@ -89,13 +92,32 @@ jobs:
             --statistics
 
       - name: Run mypy type check
-        # ponytail: 存量 47 个类型错误（多为 Optional 收窄 / Any 返回），本回合先暴露不阻塞；清零后删掉下一行即变硬关卡。
-        continue-on-error: true
+        # 硬门禁（2026-10-15）：此前是 `continue-on-error: true`，注释自述「存量 47 个类型错误」。
+        # 实测存量是 **41 个 / 13 个文件**（mypy 1.9.0，run #915 日志），已全部清零 -> 去掉软开关。
+        # 根因多是「声明返回 float/dict 却直接返回 Any 表达式」（本 job 不装 numpy/torch/sklearn，
+        # --ignore-missing-imports 让它们都是 Any）：修法是显式 float(...) 或显式标注容器类型，
+        # 不改数值行为、不改公开签名。
         run: |
-          .venv/bin/mypy src/ --ignore-missing-imports \
+          .venv/bin/mypy src/ tests/ main.py cli.py __init__.py --ignore-missing-imports \
             --no-strict-optional \
             --warn-unused-ignores \
             --explicit-package-bases
+
+      - name: Verify mypy gate can fail (negative control)
+        # 同其它门禁：基线是「0 错误」，所以必须先证明这个检查真的会报错。
+        # 给 mypy 一个必然该被报出的输入（str 赋给 int 变量 / 返回类型不符），断言它非零退出。
+        run: |
+          probe=/tmp/mypy-negative-control
+          rm -rf "$probe" && mkdir -p "$probe"
+          printf '%s\n' 'y: int = "not an int"' 'def f() -> int:' '    return "no"' > "$probe/planted.py"
+          if .venv/bin/mypy "$probe/planted.py" --ignore-missing-imports --no-strict-optional \
+               > "$probe/out.txt" 2>&1; then
+            echo "::error::mypy 门禁失效：对必然出错的输入没有报错（该检查本身不可信）"
+            cat "$probe/out.txt"
+            exit 1
+          fi
+          echo "negative control OK：mypy 对植入的类型错误返回非零"
+          cat "$probe/out.txt"
 
   # -------------------------------------------
   # 安全扫描
