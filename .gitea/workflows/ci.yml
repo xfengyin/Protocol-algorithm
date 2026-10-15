@@ -127,20 +127,54 @@ jobs:
       - name: Install security tools
         run: |
           .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/pip install bandit==1.7.8 safety==3.1.0
+          .venv/bin/pip install bandit==1.7.8
+      # 依赖漏洞审计**不在这里**：本 job 不装 requirements.txt（装了要 20 分钟），
+      # 而改造前的 `safety check`（无目标）审的是本 job 自己那个 venv（bandit 的依赖），
+      # 即便跑通也是审错对象。审计已移到 test job（那里装有全量依赖，见下方 test job）。
 
       - name: Run Bandit security scan
+        # 硬门禁：退出码即判据 —— 扫出 >=medium 严重度/置信度的问题 -> 非零 -> job 红。
+        # 这里**不用 `|| true`**（那是把门禁变装饰）：只用 `set +e` 把退出码捞出来，
+        # 先把报告打进日志（红了能直接看到原因），再把原退出码还回去。
+        # 存量登记：src/ai/sklearn_selector.py 的 pickle.load（B301）已在源码里带理由 nosec，
+        # 其余任何 >=medium 的新问题都会让本步红。
         run: |
+          set +e
           .venv/bin/bandit -r src/ \
             --format=custom \
             --confidence-level=medium \
             --severity-level=medium \
             --exclude=tests/ \
-            --output=bandit-report.txt || true
+            --output=bandit-report.txt
+          rc=$?
+          echo "bandit exit code = $rc (0=无 >=medium 问题)"
+          echo "---------------- bandit-report.txt ----------------"
+          if [ -f bandit-report.txt ]; then cat bandit-report.txt; else echo "(bandit 没有产出报告文件)"; fi
+          exit $rc
 
-      - name: Run Safety dependency check
+      - name: Verify Bandit gate can fail (negative control)
+        # 「空输出不能自证清白」：一个永远不报的检查和一个没有问题的仓库，输出完全一样。
+        # 本步给 bandit 一个必然该被报出的输入，断言它确实返回非零。
+        # 若 bandit 哪天静默失效（插件/版本变化），这一步先红，而不是大家以为门禁还在。
         run: |
-          .venv/bin/safety check --json --output=safety-report.json || true
+          probe=/tmp/bandit-negative-control
+          rm -rf "$probe" && mkdir -p "$probe"
+          printf '%s\n' \
+            'import subprocess' \
+            'PASSWORD = "hunter2"' \
+            'def bad(text):' \
+            '    return eval(text)' \
+            'def sh(cmd):' \
+            '    return subprocess.Popen(cmd, shell=True)' \
+            > "$probe/planted.py"
+          if .venv/bin/bandit -r "$probe" \
+               --confidence-level=medium --severity-level=medium --format=custom > "$probe/out.txt" 2>&1; then
+            echo "::error::Bandit 门禁失效：对必然违规的输入没有报错（该检查本身不可信）"
+            cat "$probe/out.txt"
+            exit 1
+          fi
+          echo "negative control OK：bandit 对植入的违规样本返回非零"
+          cat "$probe/out.txt"
 
       - name: Upload security reports
         # @v3 是 Gitea 唯一可用的 artifact API（@v4+ 会被 action 自判 GHES 后拒绝执行）
@@ -148,9 +182,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: security-reports
-          path: |
-            bandit-report.txt
-            safety-report.json
+          path: bandit-report.txt
           retention-days: 30
 
   # -------------------------------------------
@@ -194,6 +226,7 @@ jobs:
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt
           .venv/bin/pip install pytest==8.1.1 pytest-cov==5.0.0 pytest-xdist==3.5.0
+          .venv/bin/pip install pip-audit==2.10.1
 
       - name: Run tests with coverage
         if: matrix.python-version == '3.11'
@@ -216,6 +249,31 @@ jobs:
             --junitxml=junit-report.xml \
             --numprocesses=auto \
             --durations=10
+
+      - name: Audit installed dependencies (known vulnerabilities)
+        # 依赖漏洞门禁（替代改造前那个 `safety check ... || true`）。放在测试 job 的理由：
+        # 只有这里装了 requirements.txt 的全量依赖，审计对象才是「CI 真正安装并被测试运行的
+        # 依赖集」，含传递依赖；而 `safety check -r requirements.txt` 对 `>=` 形式的依赖
+        # 不做解析（会把它们当"未固定版本"跳过），pip-audit 会解析并与漏洞库比对。
+        # 判据：pip-audit 退出码 —— 发现未登记的漏洞 -> 非零 -> job 红。
+        # 存量登记方式：`--ignore-vuln <ID>`，且必须在此处写明「为什么留 + 何时复查」；
+        # 当前清单为空 = 这套依赖上没有已知漏洞。
+        if: matrix.python-version == '3.11'
+        run: |
+          .venv/bin/pip-audit --progress-spinner=off --timeout=30
+
+      - name: Verify dependency-audit gate can fail (negative control)
+        # 同 bandit：先证明这个检查本身有效。pyyaml==5.3.1 在漏洞库里有 2 条已知漏洞
+        # （实测），--disable-pip + --no-deps 只查库、不解析不安装，确定性且秒级。
+        if: matrix.python-version == '3.11'
+        run: |
+          printf 'pyyaml==5.3.1\n' > /tmp/dep-audit-negative-control.txt
+          if .venv/bin/pip-audit --progress-spinner=off --timeout=30 \
+               --disable-pip --no-deps -r /tmp/dep-audit-negative-control.txt; then
+            echo "::error::依赖审计门禁失效：对已知含 2 个漏洞的 pyyaml==5.3.1 没有报错"
+            exit 1
+          fi
+          echo "negative control OK：pip-audit 对已知有漏洞的输入返回非零"
 
       - name: Upload coverage report
         if: (matrix.python-version == '3.11') && always()
