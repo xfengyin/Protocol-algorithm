@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from ..config.validator import SUPPORTED_MODEL_TYPES
 from .pytorch_selector import PyTorchClusterSelector
 from .selector import AIClusterSelector
 from .sklearn_selector import SklearnClusterSelector
@@ -29,12 +30,16 @@ class AITrainer:
         # SklearnClusterSelector，第二条就成了 incompatible assignment。
         self.selector: AIClusterSelector
 
+        # 合法值来自 schema 层（唯一真相源），不在本文件再抄一份
+        if model_type not in SUPPORTED_MODEL_TYPES:
+            raise ValueError(
+                f"Unknown model type: {model_type}. "
+                f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
+            )
         if model_type == "sklearn":
             self.selector = SklearnClusterSelector(**kwargs)
-        elif model_type == "pytorch":
+        else:  # "pytorch"（SUPPORTED_MODEL_TYPES 里只剩这两条分支）
             self.selector = PyTorchClusterSelector(**kwargs)
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
 
     def load_dataset(self, path: str) -> Tuple[np.ndarray, np.ndarray]:
         """
