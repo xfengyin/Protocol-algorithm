@@ -223,6 +223,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # 两个腿 = requires-python ">=3.11" 这个**无上界声明**的下界与上界各要一份证据，
+        # 不是「多测一遍」。删掉 3.12 等于「声明支持 3.12 但没有任何证据」——覆盖面比声明还窄。
+        # 成本的真正大头是「装依赖」而不是「跑测试」（实测安装 20+ 分钟、测试 3 分钟），
+        # 所以省成本的手段是删未用依赖 + torch 用 CPU 轮子，不是砍腿。
+        # 判据（写在代码里，便于复核）：两腿合计仍 >15 分钟就砍成单腿。
         python-version: ["3.11", "3.12"]
 
     steps:
@@ -248,6 +253,12 @@ jobs:
       - name: Install dependencies
         run: |
           .venv/bin/python -m pip install --upgrade pip
+          # torch 装 CPU 轮子：NAS 是纯 CPU 机器（无 GPU）。PyPI 上 Linux 的默认轮子会额外
+          # 拉 nvidia-* CUDA 依赖（约 2.5GB）；实测 CPU 轮子 196MB、其 METADATA 里
+          # Requires-Dist 的 nvidia 条数为 0（torch 2.14.1+cpu, cp311）。
+          # 先装好它，下一步 -r requirements.txt 看到 torch>=2.14.0 已满足就不会再拉 CUDA 版。
+          # download.pytorch.org 从 NAS 直连实测可达（HTTP 200，3.3s，不需要代理）。
+          .venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
           .venv/bin/pip install -r requirements.txt
           .venv/bin/pip install pytest==8.1.1 pytest-cov==5.0.0 pytest-xdist==3.5.0
           .venv/bin/pip install pip-audit==2.10.1

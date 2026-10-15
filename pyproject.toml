@@ -27,20 +27,20 @@ dependencies = [
     "numpy>=1.26.4",
     "pandas>=2.3.3",
     "matplotlib>=3.11.2",
-    "seaborn>=0.13.2",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.9.1",
-    "tqdm>=4.70.1",
+    # scipy：src/models/network.py 的 cKDTree 真实使用（此前靠 scikit-learn 传递带入）
+    "scipy>=1.11.0",
 ]
 
+# 语义说明（2026-10-15 收窄）：这里只保留有真实使用者的可选项。
+# 删掉的：simulation extra（唯一成员 simpy 全仓零 import —— 「事件驱动」是自研队列，
+# README 说的「simpy 风格」指设计风格）、lightgbm / shap（零 import）、
+# jupyter / ipykernel（零 import；jupyter 一项就带约 80 个传递依赖）。
+# AI 依赖只剩 torch，且 CI 装的是 CPU 轮子（runner 无 GPU，CUDA 版多拉 ~2.5GB）。
 [project.optional-dependencies]
-simulation = [
-    "simpy>=4.1.2",
-]
 ai = [
     "torch>=2.14.0",
-    "lightgbm>=4.7.0",
-    "shap>=0.48.0",
 ]
 dev = [
     "pytest>=7.4.4",
@@ -48,14 +48,9 @@ dev = [
     "black>=23.12.1",
     "isort>=5.13.2",
     "mypy>=1.20.2",
-    "jupyter>=1.1.1",
-    "ipykernel>=6.31.0",
 ]
 all = [
-    "simpy>=4.1.2",
     "torch>=2.14.0",
-    "lightgbm>=4.7.0",
-    "shap>=0.48.0",
     "pytest>=7.4.4",
     "pytest-cov>=4.1.0",
 ]
