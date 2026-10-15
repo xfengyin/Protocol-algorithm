@@ -1,15 +1,25 @@
+# 直接依赖（CI 的 test job 装的就是这一份；与 pyproject.toml 的 [project.dependencies] 保持一致）
+#
+# 收窄依据：每条依赖都必须有真实的 import 使用者，判据是
+#   git ls-files '*.py' | xargs grep -nE '^\s*(import|from) <包名>(\.|\s|,|$)'
+# 2026-10-15 删掉 7 个「零 import」的依赖：jupyter / ipykernel / tqdm / simpy / shap /
+# seaborn / lightgbm。光是 jupyter 一项就带进约 80 个传递依赖（notebook / jupyterlab /
+# nbconvert / tornado / ipywidgets …），把 test job 的安装阶段拖到 20 分钟量级，
+# 而 NAS 上只有 2 个 amd64 槽位 —— 一个仓的 run 会卡住其他仓的验收。
+# 删之前逐一核对过字符串误报：shap 的命中全是 `.shape[..]`，seaborn 只有
+# style="seaborn-v0_8-darkgrid"（matplotlib 自带样式名，不需要 seaborn 包），
+# lightgbm 只有一处 model_type 校验字符串（那条分支从未实现，已同步收敛）。
+#
+# torch 由 CI 显式装 CPU 轮子（见 .gitea/workflows/ci.yml）：PyPI 上 Linux 的默认轮子
+# 会额外拉 nvidia-* CUDA 依赖（约 2.5GB），而 runner 是纯 CPU。
 numpy>=1.26.4
 pandas>=2.3.3
 matplotlib>=3.11.2
-seaborn>=0.13.2
 pyyaml>=6.0.3
 scikit-learn>=1.9.1
-tqdm>=4.70.1
-simpy>=4.1.2
+# scipy 是 src/models/network.py 的 cKDTree 真实用到的依赖，此前只靠 scikit-learn
+# 传递带入而没有声明（scikit-learn 自身依赖 scipy，所以显式声明不增加安装量）。
+scipy>=1.11.0
 torch>=2.14.0
-lightgbm>=4.7.0
-shap>=0.48.0
 pytest>=7.4.4
 pytest-cov>=4.1.0
-jupyter>=1.1.1
-ipykernel>=6.31.0

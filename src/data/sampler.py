@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -121,7 +121,7 @@ class ImbalancedSampler:
 
         rng = np.random.RandomState(random_state)
 
-        synthetic = []
+        synthetic: List[np.ndarray] = []
 
         while len(synthetic) < n_samples - len(X):
             idx = rng.randint(0, len(X))

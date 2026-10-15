@@ -126,8 +126,12 @@ class FirstOrderRadioModel(EnergyModel):
         """数据聚合能耗"""
         return self._E_da
 
-    def calc_transmit_energy(self, distance: float, message_size: int) -> float:
-        """计算发送能耗"""
+    def calc_transmit_energy(self, distance: float, message_size: float) -> float:
+        """计算发送能耗
+
+        message_size 允许取实数：estimate_network_energy_budget 按簇规模缩放后
+        传进来的就是非整数比特数（base 类声明 int，这里放宽是合法的逆变）。
+        """
         if distance <= self.d_threshold:
             energy = (self.E_elec + self.epsilon_fs * distance**2) * message_size
         else:

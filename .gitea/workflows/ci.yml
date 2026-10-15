@@ -1,5 +1,11 @@
 name: CI Pipeline
 
+# 本仓只由 Gitea 跑 Actions：GitHub（xfengyin/Protocol-algorithm）只是 Gitea 的 push mirror，
+# 只读、**不跑 Actions**（GitHub 只读 .github/workflows/，而本仓的 workflow 全在 .gitea/workflows/）。
+# 因此本文件里不再保留 `github.server_url == 'https://github.com'` 的 GitHub 分支，
+# 也不再为同一个 artifact 写两份 action —— 那些分支结构上不可达，属于死配置。
+# runs-on 一律直写真实存在的标签：本仓全部 job 落 NAS（amd64），板上没有 github_mirror 拉不动 action。
+
 # 2026-10-10 修：本仓库默认分支是 master，但下面的触发分支只写了 main/develop，
 # 结果 CI **从来没在默认分支上跑过**（实测：推到 master 的提交不产生任何 run，
 # 最新 run 还停在 09-29 的手动/PR 触发）。全集群 33 个 push 触发的 workflow 里只有这一处不匹配，
@@ -36,8 +42,7 @@ jobs:
   # -------------------------------------------
   lint:
     name: Code Quality Check
-    # 只有 NAS runner 配了 github_mirror；落到 1.4G 的 Pi 上连 action 都拉不下来（实测 task 1074 7s 即败）
-    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'amd64' }}
+    runs-on: amd64
     timeout-minutes: 10
 
     steps:
@@ -66,39 +71,62 @@ jobs:
         run: |
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/pip install black==24.3.0 isort==5.13.2 flake8==7.0.0 mypy==1.9.0
+          # 只有类型存根，不是运行时依赖：本 job 不装 requirements.txt，
+          # 缺 types-PyYAML 时 mypy 会报 src/config/validator.py:10 import-untyped。
+          .venv/bin/pip install types-PyYAML==6.0.12.20240311
 
+      # 覆盖范围：src/ tests/ examples/ + 两个入口脚本 + 包根。此前只查 src/ 与 tests/，
+      # examples/（2184 行，README 当公开用法推荐给用户）和 main.py / cli.py 完全不受门禁保护。
       - name: Check Black formatting
         run: |
-          .venv/bin/black --check --diff src/ tests/
+          .venv/bin/black --check --diff src/ tests/ examples/ main.py cli.py __init__.py
 
       - name: Check import sorting
         run: |
-          .venv/bin/isort --check-only --diff src/ tests/
+          .venv/bin/isort --check-only --diff src/ tests/ examples/ main.py cli.py __init__.py
 
       - name: Run flake8
+        # 规则只留一份：.flake8（flake8 从当前目录自动发现它）。
+        # 以前命令行又把 max-line-length / extend-ignore / per-file-ignores 重复写了一遍，
+        # 于是同一套规则有两处真相源 —— 改一处漏一处就会出现「本地绿、CI 红」（88 vs 100 就这么来过）。
+        # 这里只传路径（fl8 不带路径会递归扫到 .venv/）和 --statistics（报告形式，不是规则）。
         run: |
-          .venv/bin/flake8 src/ tests/ \
-            --max-line-length=100 \
-            --extend-ignore=E203,W503 \
-            --per-file-ignores="__init__.py:F401" \
-            --statistics
+          .venv/bin/flake8 src/ tests/ examples/ main.py cli.py __init__.py --statistics
 
       - name: Run mypy type check
-        # ponytail: 存量 47 个类型错误（多为 Optional 收窄 / Any 返回），本回合先暴露不阻塞；清零后删掉下一行即变硬关卡。
-        continue-on-error: true
+        # 硬门禁（2026-10-15）：此前是 `continue-on-error: true`，注释自述「存量 47 个类型错误」。
+        # 实测存量是 **41 个 / 13 个文件**（mypy 1.9.0，run #915 日志），已全部清零 -> 去掉软开关。
+        # 根因多是「声明返回 float/dict 却直接返回 Any 表达式」（本 job 不装 numpy/torch/sklearn，
+        # --ignore-missing-imports 让它们都是 Any）：修法是显式 float(...) 或显式标注容器类型，
+        # 不改数值行为、不改公开签名。
         run: |
-          .venv/bin/mypy src/ --ignore-missing-imports \
+          .venv/bin/mypy src/ tests/ examples/ main.py cli.py __init__.py --ignore-missing-imports \
             --no-strict-optional \
             --warn-unused-ignores \
             --explicit-package-bases
+
+      - name: Verify mypy gate can fail (negative control)
+        # 同其它门禁：基线是「0 错误」，所以必须先证明这个检查真的会报错。
+        # 给 mypy 一个必然该被报出的输入（str 赋给 int 变量 / 返回类型不符），断言它非零退出。
+        run: |
+          probe=/tmp/mypy-negative-control
+          rm -rf "$probe" && mkdir -p "$probe"
+          printf '%s\n' 'y: int = "not an int"' 'def f() -> int:' '    return "no"' > "$probe/planted.py"
+          if .venv/bin/mypy "$probe/planted.py" --ignore-missing-imports --no-strict-optional \
+               > "$probe/out.txt" 2>&1; then
+            echo "::error::mypy 门禁失效：对必然出错的输入没有报错（该检查本身不可信）"
+            cat "$probe/out.txt"
+            exit 1
+          fi
+          echo "negative control OK：mypy 对植入的类型错误返回非零"
+          cat "$probe/out.txt"
 
   # -------------------------------------------
   # 安全扫描
   # -------------------------------------------
   security:
     name: Security Scan
-    # 只有 NAS runner 配了 github_mirror；落到 1.4G 的 Pi 上连 action 都拉不下来（实测 task 1074 7s 即败）
-    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'amd64' }}
+    runs-on: amd64
     timeout-minutes: 10
 
     steps:
@@ -123,62 +151,91 @@ jobs:
       - name: Install security tools
         run: |
           .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/pip install bandit==1.7.8 safety==3.1.0
+          .venv/bin/pip install bandit==1.7.8
+      # 依赖漏洞审计**不在这里**：本 job 不装 requirements.txt（装了要 20 分钟），
+      # 而改造前的 `safety check`（无目标）审的是本 job 自己那个 venv（bandit 的依赖），
+      # 即便跑通也是审错对象。审计已移到 test job（那里装有全量依赖，见下方 test job）。
 
       - name: Run Bandit security scan
+        # 硬门禁：退出码即判据 —— 扫出 >=medium 严重度/置信度的问题 -> 非零 -> job 红。
+        # 这里**不用 `|| true`**（那是把门禁变装饰）：只用 `set +e` 把退出码捞出来，
+        # 先把报告打进日志（红了能直接看到原因），再把原退出码还回去。
+        # 存量登记：src/ai/sklearn_selector.py 的 pickle.load（B301）已在源码里带理由 nosec，
+        # 其余任何 >=medium 的新问题都会让本步红。
         run: |
+          set +e
           .venv/bin/bandit -r src/ \
             --format=custom \
             --confidence-level=medium \
             --severity-level=medium \
             --exclude=tests/ \
-            --output=bandit-report.txt || true
+            --output=bandit-report.txt
+          rc=$?
+          echo "bandit exit code = $rc (0=无 >=medium 问题)"
+          echo "---------------- bandit-report.txt ----------------"
+          if [ -f bandit-report.txt ]; then cat bandit-report.txt; else echo "(bandit 没有产出报告文件)"; fi
+          exit $rc
 
-      - name: Run Safety dependency check
+      - name: Verify Bandit gate can fail (negative control)
+        # 「空输出不能自证清白」：一个永远不报的检查和一个没有问题的仓库，输出完全一样。
+        # 本步给 bandit 一个必然该被报出的输入，断言它确实返回非零。
+        # 若 bandit 哪天静默失效（插件/版本变化），这一步先红，而不是大家以为门禁还在。
         run: |
-          .venv/bin/safety check --json --output=safety-report.json || true
+          probe=/tmp/bandit-negative-control
+          rm -rf "$probe" && mkdir -p "$probe"
+          printf '%s\n' \
+            'import subprocess' \
+            'PASSWORD = "hunter2"' \
+            'def bad(text):' \
+            '    return eval(text)' \
+            'def sh(cmd):' \
+            '    return subprocess.Popen(cmd, shell=True)' \
+            > "$probe/planted.py"
+          if .venv/bin/bandit -r "$probe" \
+               --confidence-level=medium --severity-level=medium --format=custom > "$probe/out.txt" 2>&1; then
+            echo "::error::Bandit 门禁失效：对必然违规的输入没有报错（该检查本身不可信）"
+            cat "$probe/out.txt"
+            exit 1
+          fi
+          echo "negative control OK：bandit 对植入的违规样本返回非零"
+          cat "$probe/out.txt"
 
-      - name: Upload security reports (Gitea)
-        if: (always()) && github.server_url != 'https://github.com'
+      - name: Upload security reports
+        # @v3 是 Gitea 唯一可用的 artifact API（@v4+ 会被 action 自判 GHES 后拒绝执行）
+        if: always()
         uses: actions/upload-artifact@v3
         with:
           name: security-reports
-          path: |
-            bandit-report.txt
-            safety-report.json
-          retention-days: 30
-
-      - name: Upload security reports (GitHub)
-        if: (always()) && github.server_url == 'https://github.com'
-        uses: actions/upload-artifact@v6
-        with:
-          name: security-reports
-          path: |
-            bandit-report.txt
-            safety-report.json
+          path: bandit-report.txt
           retention-days: 30
 
   # -------------------------------------------
   # 单元测试与覆盖率
   # -------------------------------------------
   test:
-    name: Test (Python ${{ matrix.python-version }}, OS ${{ matrix.os }})
-    # matrix.os 直接当 runs-on 用会绕过标签治理：本机 opi-runner-1 也声明了 ubuntu-latest，
-    # 于是这个 python 测试 job 有约一半概率落到 1.4G 的 OrangePi 上 —— 而 Pi 的 act_runner
-    # 没配 github_mirror，连 action 都拉不下来。
-    # 本次就是现场证据：run#902 的两个 Test job 被派到 opi-runner-1，其一已 st=2 失败。
-    # 用 server_url 分支：GitHub 侧仍按 matrix.os（保留矩阵语义），Gitea 侧固定 amd64。
-    runs-on: ${{ github.server_url == 'https://github.com' && matrix.os || 'amd64' }}
+    name: Test (Python ${{ matrix.python-version }})
+    # runs-on 写死 amd64（NAS）。历史上这里用 matrix.os 当 runs-on，绕过标签治理：
+    # 本机 opi-runner-1 也声明了 ubuntu-latest，于是 python 测试 job 有约一半概率落到
+    # 1.4G 的 OrangePi 上 —— 而 Pi 的 act_runner 没配 github_mirror，连 action 都拉不下来
+    # （run#902 的两个 Test job 被派到 opi-runner-1，其一 st=2 失败）。
+    runs-on: amd64
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        # 两个腿 = requires-python ">=3.11" 这个**无上界声明**的下界与上界各要一份证据，
+        # 不是「多测一遍」。删掉 3.12 等于「声明支持 3.12 但没有任何证据」——覆盖面比声明还窄。
+        # 成本的真正大头是「装依赖」而不是「跑测试」，所以省成本的手段是删未用依赖 +
+        # torch 用 CPU 轮子，不是砍腿。
+        # 成本实测（n=2，含容器启动的墙钟；口径：槽位分钟 = 两腿相加，run 墙钟 = 较慢那条腿）：
+        #   改造前 3 次历史 run：3.11 腿 25.8/36.8/30.5 分、3.12 腿 23.9/30.7/28.9 分（槽位 50–62）
+        #   瘦身之后 run 10220：10.52 / 7.02 分（槽位 17.54）；run 10225：12.94 / 11.32 分（槽位 24.26）
+        #   —— 10225 偏慢有已识别的环境原因：它与 picoclaw 的两个 Go job 抢同一台 NAS 的 CPU
+        #   （requirements 安装 168s→208s 变慢，而 pytest 阶段 97.55s→85.29s 反而变快）。
+        # 结论：**保留两腿，不设自动触发** —— 「槽位分钟 >20 就砍」这类阈值在 n=2 上会因噪声翻转
+        #   （同一份代码 17.54 vs 24.26），而砍 3.12 腿不会让 run 早结束（两次都是 3.11 腿更慢，
+        #   其他仓的等待由 run 墙钟决定）。若将来在**安静环境**下连续两次槽位分钟 >20，再议。
         python-version: ["3.11", "3.12"]
-        os: [ubuntu-latest]
-        include:
-          - python-version: "3.11"
-            os: ubuntu-latest
-            coverage: true
 
     steps:
       - name: Checkout code
@@ -202,16 +259,50 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Install dependencies
         run: |
-          .venv/bin/python -m pip install --upgrade pip
+          # setuptools 也要一起升级：runner 镜像里预装的是 79.0.1，而漏洞库里有
+          # PYSEC-2026-3447（修复版本 83.0.0）—— 这是本轮依赖审计门禁第一次真实运行
+          # 报出来的两条之一（另一条是下面 pin 的 pytest 8.1.1 / PYSEC-2026-1845）。
+          .venv/bin/python -m pip install --upgrade pip setuptools
+          # torch 装 CPU 轮子：NAS 是纯 CPU 机器（无 GPU）。PyPI 上 Linux 的默认轮子会额外
+          # 拉 nvidia-* CUDA 依赖（约 2.5GB）；实测 CPU 轮子 196MB、其 METADATA 里
+          # Requires-Dist 的 nvidia 条数为 0（torch 2.14.1+cpu, cp311）。
+          # 先装好它，下一步 -r requirements.txt 看到 torch>=2.14.0 已满足就不会再拉 CUDA 版。
+          # download.pytorch.org 从 NAS 直连实测可达（HTTP 200，3.3s，不需要代理）。
+          .venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
           .venv/bin/pip install -r requirements.txt
-          .venv/bin/pip install pytest==8.1.1 pytest-cov==5.0.0 pytest-xdist==3.5.0
+          # 测试工具的 pin：8.1.1 有已知漏洞 PYSEC-2026-1845（修复版本 9.0.3，8.x 没有修复版），
+          # 所以升到 9.1.1；pytest-cov / xdist 跟着升到与 pytest 9 配套的当前版本。
+          # 这三条 pin 的用途是「让测试运行器版本可复现」，所以漏洞库出现新告警时的处置是**升版本**；
+          # 只有升版本本身不可行时，才退化为 `--ignore-vuln <ID>` + 在审计步骤里写明「为什么留 + 何时复查」。
+          .venv/bin/pip install pytest==9.1.1 pytest-cov==7.1.0 pytest-xdist==3.8.0
+          .venv/bin/pip install pip-audit==2.10.1
 
       - name: Run tests with coverage
-        if: matrix.coverage
+        # 覆盖率门禁（P4）：阈值不是拍出来的，是先量化再定的 ——
+        # 存量实测 = **1930 行中 858 行被覆盖**，即 lines-valid=1930 / lines-covered=858 /
+        # line-rate=0.4446（44.46%），来源是 CI 自己产出的 coverage.xml 工件：
+        # run 10185 与 run 10191 两次独立运行数字完全相同（858/1930），说明这个量是可复现的，
+        # 不是跑一次的偶然值。阈值取 floor(44.46) = **44**：
+        #   * 语义 = 「存量不许下降，新增未覆盖代码要还债」；
+        #   * 容差 = 0.46 个百分点 ≈ 9 条语句（0.46% × 1930）—— 改个变量名、加两行日志不会误伤，
+        #     但新增一个几十行的未测模块立刻红。
+        # 2026-10-15 复测（run 10220 / task 1482）：TOTAL 1938 行、覆盖 938 行 = 48.40%。
+        # 2026-10-15 第二轮（run 10232 / task 1501）：51 tests 通过后 TOTAL 覆盖率 50.82%
+        #   （+2.4pp：这一轮新增的 tests/test_batch_simulator.py 开始真正执行
+        #    _aggregate_results 的聚合分支 —— 也就是说涨的这部分是**真覆盖**，不是导入即覆盖）。
+        #   阈值仍保持 44：地板是棘轮，抬阈值要单独一轮，不在本次改动范围。
+        # 涨的约 4pp 里主要来自 src/config/validator.py —— trainer 新增了一条到 config 的
+        # import 边，模块级语句因此被执行（**导入即覆盖**，不等于行为被测）。所以阈值**不动**：
+        # 拿"导入带来的虚高"去抬高门槛，等于把没测的代码当成测过的。
+        # 为什么不写进 pyproject.toml 的 [tool.coverage.report]：那样本地
+        # `pytest --cov=src tests/test_energy.py` 单跑一个文件也会因为「全仓覆盖率不足」而红，
+        # 是把 CI 判据塞进开发者日常路径；门禁放 CI 命令行，本地保持自由。
+        if: matrix.python-version == '3.11'
         run: |
           .venv/bin/pytest tests/ \
             -v \
             --cov=src \
+            --cov-fail-under=44 \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
             --cov-report=term-missing:skip-covered \
@@ -219,8 +310,31 @@ jobs:
             --numprocesses=auto \
             --durations=10
 
+      - name: Verify coverage gate can fail (negative control)
+        # 同 bandit / pip-audit：阈值型门禁最容易变成摆设（写个永远满意的数字就行），
+        # 所以必须证明「低于阈值 -> pytest 真的红」。做法：只跑一个测试文件（覆盖必然远低于 90%），
+        # 阈值临时设 90，断言 pytest 非零退出，且失败原因确实是覆盖率（不是测试自己失败）。
+        # 报告写进 /tmp，避免覆盖真实运行产出的 coverage.xml / htmlcov（它们随后要当工件上传）。
+        # 注：--cov-fail-under 的上限是 100（写 101 会被 argparse 直接拒，实测 exit 4）。
+        if: matrix.python-version == '3.11'
+        run: |
+          if .venv/bin/pytest tests/test_energy.py -q --cov=src --cov-fail-under=90 \
+               --cov-report=xml:/tmp/cov-negative-control.xml \
+               > /tmp/cov-negative-control.txt 2>&1; then
+            echo "::error::coverage 门禁失效：阈值 90 却没有让 pytest 失败"
+            tail -20 /tmp/cov-negative-control.txt
+            exit 1
+          fi
+          if ! grep -q "Required test coverage of 90% not reached" /tmp/cov-negative-control.txt; then
+            echo "::error::pytest 失败原因不是覆盖率门禁（这条断言防止把真实测试失败当成门禁生效）"
+            tail -20 /tmp/cov-negative-control.txt
+            exit 1
+          fi
+          echo "negative control OK：--cov-fail-under 会让 job 红"
+          grep "Required test coverage" /tmp/cov-negative-control.txt
+
       - name: Run tests without coverage
-        if: ${{ !matrix.coverage }}
+        if: matrix.python-version != '3.11'
         run: |
           .venv/bin/pytest tests/ \
             -v \
@@ -228,8 +342,104 @@ jobs:
             --numprocesses=auto \
             --durations=10
 
-      - name: Upload coverage report (Gitea)
-        if: (matrix.coverage) && github.server_url != 'https://github.com'
+      - name: Audit installed dependencies (known vulnerabilities)
+        # 依赖漏洞门禁（替代改造前那个 `safety check ... || true`）。放在测试 job 的理由：
+        # 只有这里装了 requirements.txt 的全量依赖，审计对象才是「CI 真正安装并被测试运行的
+        # 依赖集」，含传递依赖；而 `safety check -r requirements.txt` 对 `>=` 形式的依赖
+        # 不做解析（会把它们当"未固定版本"跳过），pip-audit 会解析并与漏洞库比对。
+        # 判据：pip-audit 退出码 —— 发现未登记的漏洞 -> 非零 -> job 红。
+        # 存量登记方式：`--ignore-vuln <ID>`，且必须在此处写明「为什么留 + 何时复查」；
+        # 当前清单为空 = 这套依赖上没有已知漏洞。
+        #
+        # 这条门禁第一次真实运行（run 10220 / task 1482）就红了，证明它真的会拦人：
+        #   pytest 8.1.1      PYSEC-2026-1845  -> 升到 9.1.1（8.x 没有修复版）
+        #   setuptools 79.0.1 PYSEC-2026-3447 -> 安装阶段改为 --upgrade setuptools
+        # 已知盲区（写在这里，免得被当成全覆盖）：带本地版本号的包会被 pip-audit 跳过 ——
+        # 实测 `torch 2.14.1+cpu` 报 "Dependency not found on PyPI and could not be audited"。
+        # 即 torch 的漏洞**不在**这条门禁的覆盖内；需要时补一次
+        # `pip-audit --disable-pip --no-deps -r requirements.txt`（按 PyPI 上的公开版本审计）。
+        if: matrix.python-version == '3.11'
+        run: |
+          .venv/bin/pip-audit --progress-spinner=off --timeout=30
+
+      - name: Verify dependency-audit gate can fail (negative control)
+        # 同 bandit：先证明这个检查本身有效。pyyaml==5.3.1 在漏洞库里有 2 条已知漏洞
+        # （实测），--disable-pip + --no-deps 只查库、不解析不安装，确定性且秒级。
+        if: matrix.python-version == '3.11'
+        run: |
+          printf 'pyyaml==5.3.1\n' > /tmp/dep-audit-negative-control.txt
+          if .venv/bin/pip-audit --progress-spinner=off --timeout=30 \
+               --disable-pip --no-deps -r /tmp/dep-audit-negative-control.txt; then
+            echo "::error::依赖审计门禁失效：对已知含 2 个漏洞的 pyyaml==5.3.1 没有报错"
+            exit 1
+          fi
+          echo "negative control OK：pip-audit 对已知有漏洞的输入返回非零"
+
+      - name: Verify built wheel is importable (packaging)
+        # 打包布局门禁。全仓 45 处写的是 `from src.xxx import ...`，所以 wheel 的顶层包必须是 `src`。
+        #
+        # 修前（pyproject 里 packages.find where = ["src"]）拆开 wheel 看，顶层条目是
+        #   ['ai','config','data','energy','leach','models','simulation','visualization']  —— 没有 src/
+        #   __init__.py 是 ai/__init__.py、models/__init__.py…（src/ 里的目录被平铺）
+        #   也没有 main.py / cli.py（[project.scripts] 的入口，得靠 py-modules 才进 wheel）
+        # 修后：顶层条目 = ['cli.py','main.py','protocol_algorithm-1.0.0.dist-info','src']，
+        #   __init__.py 变成 src/__init__.py、src/ai/__init__.py…
+        #
+        # 为什么必须在仓库之外导入：从仓库根目录跑时 CWD 在 sys.path 里、且排在 site-packages 之前，
+        # `import src` 会命中仓库里的 src/（实测 src.__file__ = <repo>/src/__init__.py），
+        # 于是这个缺陷永远看不到。所以本步：
+        #   ① 产物落到仓库外（/tmp/wheelhouse）；
+        #   ② cd /tmp 并用 `-I`（隔离模式：忽略 PYTHONPATH 与 user site）；
+        #   ③ **把「环境是否干净」本身做成断言**：仓库根不允许出现在 sys.path 里；
+        #   ④ 断言导入到的 src 在 venv 的 site-packages 下、且不在 <repo>/src 下；
+        #   ⑤ 拆开 wheel 打印顶层条目并断言 src 与两个入口模块都在。
+        # ④⑤ 一起构成闭环：少了 ⑤ 就分不清「wheel 装错了」和「导入被 CWD 劫持了」。
+        if: matrix.python-version == '3.11'
+        run: |
+          set -e
+          REPO_ROOT="$PWD"
+          .venv/bin/pip install -q build
+          .venv/bin/python -m build --wheel -o /tmp/wheelhouse .
+          ls -l /tmp/wheelhouse
+          .venv/bin/pip install --no-deps --force-reinstall /tmp/wheelhouse/*.whl
+          cd /tmp
+          REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -I - <<'PY'
+          import glob
+          import os
+          import pathlib
+          import sys
+          import sysconfig
+          import zipfile
+
+          repo = pathlib.Path(os.environ["REPO_ROOT"]).resolve()
+          print("sys.path[0:3] =", sys.path[:3])
+          # ③ 环境干净本身是被检查的东西：仓库根在 sys.path 里就会把 import 劫持到仓库副本
+          leaked = [p for p in sys.path if pathlib.Path(p or ".").resolve() == repo]
+          assert not leaked, f"仓库根混进 sys.path：{leaked}"
+          print("隔离检查 OK：仓库根不在 sys.path")
+
+          import src  # noqa: E402  必须晚于隔离断言
+          import src.ai  # noqa: E402,F401
+          import src.energy  # noqa: E402,F401
+          import src.models  # noqa: E402,F401
+          import src.simulation  # noqa: E402,F401
+
+          p = pathlib.Path(src.__file__).resolve()
+          site = pathlib.Path(sysconfig.get_paths()["purelib"]).resolve()
+          assert p.is_relative_to(site), f"导入的不是 venv site-packages 那份：{p}"
+          assert not p.is_relative_to(repo / "src"), f"导入到了仓库里的 src/：{p}"
+
+          # ⑤ 拆开 wheel 看看到底装了什么（分得清「wheel 错」与「导入被劫持」）
+          wheel = glob.glob("/tmp/wheelhouse/*.whl")[0]
+          tops = sorted({n.split("/")[0] for n in zipfile.ZipFile(wheel).namelist()})
+          print("wheel 顶层条目:", tops)
+          assert "src" in tops, f"wheel 里没有顶层 src/（正是修前那个缺陷）：{tops}"
+          assert "main.py" in tops and "cli.py" in tops, f"入口脚本没进 wheel：{tops}"
+          print("wheel import OK:", p)
+          PY
+
+      - name: Upload coverage report
+        if: (matrix.python-version == '3.11') && always()
         uses: actions/upload-artifact@v3
         with:
           name: coverage-report-py${{ matrix.python-version }}
@@ -238,29 +448,11 @@ jobs:
             htmlcov/
           retention-days: 30
 
-      - name: Upload coverage report (GitHub)
-        if: (matrix.coverage) && github.server_url == 'https://github.com'
-        uses: actions/upload-artifact@v6
-        with:
-          name: coverage-report-py${{ matrix.python-version }}
-          path: |
-            coverage.xml
-            htmlcov/
-          retention-days: 30
-
-      - name: Upload test results (Gitea)
-        if: (always()) && github.server_url != 'https://github.com'
+      - name: Upload test results
+        if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: test-results-py${{ matrix.python-version }}-${{ matrix.os }}
-          path: junit-report.xml
-          retention-days: 30
-
-      - name: Upload test results (GitHub)
-        if: (always()) && github.server_url == 'https://github.com'
-        uses: actions/upload-artifact@v6
-        with:
-          name: test-results-py${{ matrix.python-version }}-${{ matrix.os }}
+          name: test-results-py${{ matrix.python-version }}
           path: junit-report.xml
           retention-days: 30
 
@@ -270,8 +462,7 @@ jobs:
   summary:
     name: CI Summary
     needs: [lint, security, test]
-    # 只有 NAS runner 配了 github_mirror；落到 1.4G 的 Pi 上连 action 都拉不下来（实测 task 1074 7s 即败）
-    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'amd64' }}
+    runs-on: amd64
     if: always()
     timeout-minutes: 5
 

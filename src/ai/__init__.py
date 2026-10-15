@@ -7,12 +7,12 @@ from .sklearn_selector import SklearnClusterSelector
 try:
     from .pytorch_selector import PyTorchClusterSelector
 except ImportError:
-    PyTorchClusterSelector = None  # type: ignore[assignment]  # torch 缺失时的降级
+    PyTorchClusterSelector = None  # type: ignore[misc]  # 降级：mypy 把已 import 的名字当类型，赋 None 报 misc
 
 try:
     from .trainer import AITrainer
 except ImportError:
-    AITrainer = None  # type: ignore[assignment]  # 依赖缺失时的降级
+    AITrainer = None  # type: ignore[misc]  # 依赖缺失时的降级（同上）
 
 __all__ = [
     "AIClusterSelector",

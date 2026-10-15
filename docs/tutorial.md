@@ -84,7 +84,7 @@ protocol-algorithm/
 
 ### 2.1 系统要求
 
-- Python 3.9+
+- Python 3.11+（`pyproject.toml` 的 `requires-python = ">=3.11"`；`matplotlib>=3.11` 本身也要求 3.11+）
 - 操作系统：Linux / macOS / Windows
 
 ### 2.2 创建虚拟环境
@@ -96,7 +96,7 @@ source venv/bin/activate  # Linux/macOS
 # 或 venv\Scripts\activate  # Windows
 
 # 或使用 conda
-conda create -n leach python=3.10
+conda create -n leach python=3.11
 conda activate leach
 ```
 
@@ -118,15 +118,20 @@ python -c "from src.models.network import Network; print('Installation OK')"
 
 ### 2.5 依赖说明
 
-| 包 | 用途 |
-|----|------|
-| numpy | 数值计算与向量化 |
-| scipy | KD-Tree 空间索引 |
-| matplotlib | 图表绘制 |
-| seaborn | 统计可视化 |
-| scikit-learn | ML 簇头选择（可选） |
-| torch | PyTorch 簇头选择（可选） |
-| pyyaml | 配置文件解析 |
+| 包 | 用途 | 声明状态 |
+|----|------|----------|
+| numpy | 数值计算与向量化 | 直接依赖 |
+| pandas | 结果表处理 | 直接依赖（`src/` 中少量使用） |
+| scipy | KD-Tree 空间索引（`src/models/network.py` 用 `scipy.spatial.cKDTree`） | 2026-10-15 起**已显式声明**（此前只靠 scikit-learn 传递带入） |
+| matplotlib | 图表绘制 | 直接依赖 |
+| ~~seaborn~~ | 统计可视化 | **2026-10-15 已从依赖清单删除**：零 import（`seaborn-v0_8-darkgrid` 是 matplotlib 自带的样式名，不需要 seaborn 包） |
+| scikit-learn | ML 簇头选择 | 直接依赖 |
+| torch | PyTorch 簇头选择 | `[ai]` extra，仅 `src/ai/pytorch_selector.py` 用；CI 装 CPU 轮子 |
+| ~~lightgbm / shap~~ | AI 扩展 | **2026-10-15 已从依赖清单删除**：全仓零 import（`shap` 的命中全是 `.shape[..]`，`lightgbm` 只有一处校验字符串） |
+| ~~tqdm~~ | 进度条 | **已删除**：零 import |
+| ~~simpy~~ | 「事件驱动」 | **已删除**：零 import（README 说的「simpy 风格事件队列」指设计风格，用的是自研队列） |
+| ~~jupyter / ipykernel~~ | Notebook | **已删除**：零 import；jupyter 一项就带约 80 个传递依赖，把 CI 安装阶段拖到 20 分钟量级 |
+| pyyaml | 配置文件解析 | 直接依赖 |
 
 ---
 
@@ -204,6 +209,13 @@ comparison = simulator.compare_protocols(
 print(f"最优协议: {comparison['summary']['best_protocol']}")
 for proto, lifetime in comparison['summary']['lifetimes'].items():
     print(f"  {proto}: {lifetime:.0f} 轮")
+# lifetimes 是每个协议「所有运行」的 network_lifetime 均值（n_runs 次取平均），
+# best_protocol 就是 lifetimes 里最大的那个协议名。
+# 2026-10-15 修：此前这两个值都是退化值（lifetimes 全为 0、best_protocol 恒等于列表第一个），
+# 因为 _aggregate_results 里 aggregated["summary"] 初始化成 {} 之后从未被填充，
+# 而这里读的正是 summary["network_lifetime"]。现在 summary 会被真实填充，
+# 并由 tests/test_batch_simulator.py 断言「best_protocol 必须是较优的那个」。
+# 注意 examples/compare_variants.py 不走这条路径，它用自己的 _compute_summary()。
 ```
 
 ### 3.4 使用命令行
@@ -212,12 +224,16 @@ for proto, lifetime in comparison['summary']['lifetimes'].items():
 # 运行经典 LEACH
 python cli.py --config config/config.yaml --output results/leach/
 
-# 运行 AI 增强版本
-python cli.py --config config/leach_ai.yaml --output results/ai/
+# 指定协议：--protocol 的合法取值是 leach / leach_c / leach_ee / leach_m（下划线形式）
+python cli.py --protocol leach_ee --rounds 5000 --nodes 100
 
-# 指定协议
-python cli.py --protocol leach-ee --rounds 5000 --nodes 100
+# 不画图，只写 results.json
+python cli.py --config config/config.yaml --rounds 1000 --no-plot
 ```
+
+> ⚠️ 不要照抄 `python cli.py --config config/leach_ai.yaml`：该配置里的 `protocol: leach_ai`
+> 没有注册进 `LEACHRegistry`，会抛 `Unknown protocol: leach_ai`。
+> AI 簇头选择的可用入口是 `examples/run_ai_leach.py`（手动逐轮用模型选簇头）。
 
 ---
 

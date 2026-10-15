@@ -1,99 +1,67 @@
 """命令行接口"""
 
 import argparse
-import sys
 from pathlib import Path
+from typing import Any, Dict
 
 import yaml
 
-from src.models.network import Network
 from src.energy.radio_model import FirstOrderRadioModel
+from src.models.network import Network
 from src.visualization.metrics_plots import MetricsPlotter
 
 
-def load_config(config_path: str) -> dict:
+def load_config(config_path: str) -> Dict[str, Any]:
     """加载配置文件"""
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+    with open(config_path, "r") as f:
+        # 显式接收：yaml.safe_load 返回 Any，直接 return 会被 mypy 判为 no-any-return。
+        config: Dict[str, Any] = yaml.safe_load(f)
+        return config
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='LEACH Protocol Simulation'
-    )
-    
+    parser = argparse.ArgumentParser(description="LEACH Protocol Simulation")
+
+    parser.add_argument("--config", "-c", type=str, help="Config file path")
+
+    parser.add_argument("--output", "-o", type=str, default="./output", help="Output directory")
+
     parser.add_argument(
-        '--config',
-        '-c',
+        "--protocol",
+        "-p",
         type=str,
-        help='Config file path'
+        default="leach",
+        choices=["leach", "leach_c", "leach_ee", "leach_m"],
+        help="Protocol name",
     )
-    
-    parser.add_argument(
-        '--output',
-        '-o',
-        type=str,
-        default='./output',
-        help='Output directory'
-    )
-    
-    parser.add_argument(
-        '--protocol',
-        '-p',
-        type=str,
-        default='leach',
-        choices=['leach', 'leach_c', 'leach_ee', 'leach_m'],
-        help='Protocol name'
-    )
-    
-    parser.add_argument(
-        '--rounds',
-        '-r',
-        type=int,
-        default=1000,
-        help='Number of rounds'
-    )
-    
-    parser.add_argument(
-        '--nodes',
-        '-n',
-        type=int,
-        default=100,
-        help='Number of nodes'
-    )
-    
-    parser.add_argument(
-        '--seed',
-        '-s',
-        type=int,
-        help='Random seed'
-    )
-    
-    parser.add_argument(
-        '--no-plot',
-        action='store_true',
-        help='Skip plotting'
-    )
-    
+
+    parser.add_argument("--rounds", "-r", type=int, default=1000, help="Number of rounds")
+
+    parser.add_argument("--nodes", "-n", type=int, default=100, help="Number of nodes")
+
+    parser.add_argument("--seed", "-s", type=int, help="Random seed")
+
+    parser.add_argument("--no-plot", action="store_true", help="Skip plotting")
+
     args = parser.parse_args()
-    
+
     if args.config:
         config = load_config(args.config)
     else:
         config = {
-            'network': {
-                'n_nodes': args.nodes,
-                'area': (0, 100, 0, 100),
-                'base_station_pos': (50, 50),
-                'initial_energy': 0.5,
+            "network": {
+                "n_nodes": args.nodes,
+                "area": (0, 100, 0, 100),
+                "base_station_pos": (50, 50),
+                "initial_energy": 0.5,
             },
-            'energy_model': {},
-            'simulation': {
-                'rounds': args.rounds,
+            "energy_model": {},
+            "simulation": {
+                "rounds": args.rounds,
             },
-            'protocol': args.protocol,
+            "protocol": args.protocol,
         }
-    
+
     print("=" * 60)
     print("LEACH Protocol Simulation")
     print("=" * 60)
@@ -101,25 +69,24 @@ def main():
     print(f"Nodes: {config['network']['n_nodes']}")
     print(f"Rounds: {config['simulation']['rounds']}")
     print()
-    
-    network_config = config['network']
-    energy_model = FirstOrderRadioModel(**config.get('energy_model', {}))
-    
+
+    network_config = config["network"]
+    energy_model = FirstOrderRadioModel(**config.get("energy_model", {}))
+
     network = Network(
-        n_nodes=network_config['n_nodes'],
-        area=tuple(network_config['area']),
-        base_station_pos=tuple(network_config['base_station_pos']),
+        n_nodes=network_config["n_nodes"],
+        area=tuple(network_config["area"]),
+        base_station_pos=tuple(network_config["base_station_pos"]),
         energy_model=energy_model,
-        initial_energy=network_config.get('initial_energy', 0.5),
-        seed=args.seed or config.get('seed')
+        initial_energy=network_config.get("initial_energy", 0.5),
+        seed=args.seed or config.get("seed"),
     )
-    
+
     print("Running simulation...")
     results = network.simulate_network(
-        rounds=config['simulation']['rounds'],
-        protocol_name=config.get('protocol', args.protocol)
+        rounds=config["simulation"]["rounds"], protocol_name=config.get("protocol", args.protocol)
     )
-    
+
     print()
     print("=" * 60)
     print("Results")
@@ -129,26 +96,27 @@ def main():
     print(f"Half Network Dead: Round {results.get('half_dead_round', 'N/A')}")
     print(f"Final Alive: {results['alive_nodes'][-1]}")
     print()
-    
+
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     import json
-    with open(output_dir / 'results.json', 'w') as f:
+
+    with open(output_dir / "results.json", "w") as f:
         results_to_save = {
-            'rounds': results['rounds'],
-            'alive_nodes': results['alive_nodes'],
-            'dead_nodes': results['dead_nodes'],
-            'total_energy': [float(e) for e in results['total_energy']],
-            'cluster_heads': results['cluster_heads'],
-            'first_dead_round': results.get('first_dead_round'),
-            'half_dead_round': results.get('half_dead_round'),
-            'total_rounds_simulated': results.get('total_rounds_simulated'),
+            "rounds": results["rounds"],
+            "alive_nodes": results["alive_nodes"],
+            "dead_nodes": results["dead_nodes"],
+            "total_energy": [float(e) for e in results["total_energy"]],
+            "cluster_heads": results["cluster_heads"],
+            "first_dead_round": results.get("first_dead_round"),
+            "half_dead_round": results.get("half_dead_round"),
+            "total_rounds_simulated": results.get("total_rounds_simulated"),
         }
         json.dump(results_to_save, f, indent=2)
-    
+
     print(f"Results saved to {output_dir / 'results.json'}")
-    
+
     if not args.no_plot:
         print("Generating plots...")
         plotter = MetricsPlotter()
@@ -156,5 +124,5 @@ def main():
         print(f"Plots saved to {output_dir}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

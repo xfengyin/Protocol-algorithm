@@ -199,7 +199,7 @@ class AdvancedFeatureExtractor:
         if self._energy_ranks is None:
             self._compute_energy_ranks()
 
-        return self._energy_ranks.get(node.id, 0.5)
+        return float(self._energy_ranks.get(node.id, 0.5))
 
     def _compute_energy_ranks(self) -> None:
         """计算所有节点的能量排名"""
@@ -225,7 +225,7 @@ class AdvancedFeatureExtractor:
         if not neighbors:
             return 0.0
 
-        return np.mean([n.energy for n in neighbors])
+        return float(np.mean([n.energy for n in neighbors]))
 
     def _get_max_neighbor_energy(self, node: Node, radius: float) -> float:
         """邻居最大能量"""

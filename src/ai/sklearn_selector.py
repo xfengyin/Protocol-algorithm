@@ -117,9 +117,17 @@ class SklearnClusterSelector(AIClusterSelector):
             pickle.dump(model_data, f)
 
     def _load_model(self, path: Path):
-        """加载模型"""
+        """
+        加载模型
+
+        安全边界（bandit B301 的存量登记，见下方 nosec）：pickle 反序列化等价于
+        执行文件里的任意代码。这里只应加载本仓 `_save_model` 自己产出的模型文件；
+        把外部来源的 .pkl 喂给这个方法，等于把那个文件的作者请进本进程。
+        """
+        # B301 的存量登记：只加载本方法 docstring 约定的自产文件。
+        # （理由写在这里而不是标记后面 —— bandit 会把标记后的文本当测试名解析并告警。）
         with open(path, "rb") as f:
-            model_data = pickle.load(f)
+            model_data = pickle.load(f)  # nosec B301
 
         self.model = model_data["model"]
         self.scaler = model_data["scaler"]

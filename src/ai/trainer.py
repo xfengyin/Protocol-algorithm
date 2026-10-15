@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from ..config.validator import SUPPORTED_MODEL_TYPES
 from .pytorch_selector import PyTorchClusterSelector
+from .selector import AIClusterSelector
 from .sklearn_selector import SklearnClusterSelector
 
 
@@ -24,13 +26,20 @@ class AITrainer:
             **kwargs: 模型参数
         """
         self.model_type = model_type
+        # 两条分支产生不同子类，统一按基类标注：原来 mypy 按第一条分支定死成
+        # SklearnClusterSelector，第二条就成了 incompatible assignment。
+        self.selector: AIClusterSelector
 
+        # 合法值来自 schema 层（唯一真相源），不在本文件再抄一份
+        if model_type not in SUPPORTED_MODEL_TYPES:
+            raise ValueError(
+                f"Unknown model type: {model_type}. "
+                f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
+            )
         if model_type == "sklearn":
             self.selector = SklearnClusterSelector(**kwargs)
-        elif model_type == "pytorch":
+        else:  # "pytorch"（SUPPORTED_MODEL_TYPES 里只剩这两条分支）
             self.selector = PyTorchClusterSelector(**kwargs)
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
 
     def load_dataset(self, path: str) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -65,9 +74,12 @@ class AITrainer:
         Returns:
             X_train, X_test, y_train, y_test
         """
-        return train_test_split(
+        # 显式解包再返回：train_test_split 来自未带类型标注的 sklearn，
+        # 直接 return 会被 mypy 当成 Any 从而报 no-any-return。
+        X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=random_state, stratify=y  # 分层采样
         )
+        return X_train, X_test, y_train, y_test
 
     def train(self, X: np.ndarray, y: np.ndarray, epochs: int = 100, **kwargs) -> Dict[str, Any]:
         """

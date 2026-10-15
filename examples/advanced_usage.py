@@ -22,33 +22,27 @@ from __future__ import annotations
 
 import sys
 import time
-import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass
+from typing import List
+
+import numpy as np
 
 # 添加项目根目录到 Python 路径
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.network import Network
-from src.models.node import Node, NodeRole
-from src.models.cluster_head import ClusterHead
 from src.energy.radio_model import FirstOrderRadioModel
 from src.leach.base import LEACHProtocol
 from src.leach.variants import LEACHRegistry
-from src.simulation.engine import (
-    ParallelSimulationEngine,
-    SimulationConfig,
-    BatchSimulator,
-)
-from src.visualization.metrics_plots import MetricsPlotter
+from src.models.cluster_head import ClusterHead
+from src.models.network import Network
+from src.simulation.engine import BatchSimulator, ParallelSimulationEngine, SimulationConfig
 from src.visualization.comparison import ComparisonPlotter
-
 
 # =========================================================================
 # 示例 1: 并行仿真实验
 # =========================================================================
+
 
 def demo_parallel_simulation():
     """
@@ -118,6 +112,7 @@ def demo_parallel_simulation():
 # 示例 2: 参数扫描
 # =========================================================================
 
+
 def demo_parameter_sweep():
     """
     演示参数扫描实验
@@ -155,10 +150,7 @@ def demo_parameter_sweep():
     print("运行参数扫描...")
     start_time = time.time()
     results = engine.run_parameter_sweep(
-        base_config=base_config,
-        param_grid=param_grid,
-        n_runs=2,
-        aggregate=True
+        base_config=base_config, param_grid=param_grid, n_runs=2, aggregate=True
     )
     elapsed = time.time() - start_time
 
@@ -170,15 +162,13 @@ def demo_parameter_sweep():
         print("汇总结果:")
         for key, data in results["by_params"].items():
             lt = data.get("network_lifetime", {})
-            print(
-                f"  {key}: "
-                f"平均生命周期={lt.get('mean', 0):.1f} ± {lt.get('std', 0):.1f} 轮"
-            )
+            print(f"  {key}: " f"平均生命周期={lt.get('mean', 0):.1f} ± {lt.get('std', 0):.1f} 轮")
 
 
 # =========================================================================
 # 示例 3: 自定义协议扩展
 # =========================================================================
+
 
 class LEACHWeighted(LEACHProtocol):
     """
@@ -200,9 +190,7 @@ class LEACHWeighted(LEACHProtocol):
         self.energy_weight = energy_weight
         self.distance_weight = 1.0 - energy_weight
 
-    def select_cluster_heads(
-        self, network: "Network", **kwargs
-    ) -> List[ClusterHead]:
+    def select_cluster_heads(self, network: "Network", **kwargs) -> List[ClusterHead]:
         """
         基于加权分数选择簇头
 
@@ -225,10 +213,7 @@ class LEACHWeighted(LEACHProtocol):
             energy_ratio = node.energy / node.initial_energy
             dist_ratio = 1.0 - (node.distance_to(bs_pos) / max_dist)
 
-            score = (
-                self.energy_weight * energy_ratio +
-                self.distance_weight * dist_ratio
-            )
+            score = self.energy_weight * energy_ratio + self.distance_weight * dist_ratio
             node_scores.append((node, score))
 
         # 按分数降序排序, 选择前 n_clusters 个
@@ -240,10 +225,7 @@ class LEACHWeighted(LEACHProtocol):
         for node, score in node_scores[:n_clusters]:
             node.become_cluster_head(cluster_id)
 
-            ch = ClusterHead(
-                node=node,
-                cluster_id=cluster_id
-            )
+            ch = ClusterHead(node=node, cluster_id=cluster_id)
             cluster_heads.append(ch)
             cluster_id += 1
 
@@ -285,10 +267,7 @@ def demo_custom_protocol():
             seed=42,
         )
 
-        results = network.simulate_network(
-            rounds=1000,
-            protocol_name=protocol
-        )
+        results = network.simulate_network(rounds=1000, protocol_name=protocol)
         results_list.append(results)
 
         print(
@@ -305,7 +284,7 @@ def demo_custom_protocol():
         results_list=results_list,
         protocol_names=["LEACH (经典)", "LEACH-Weighted (加权)"],
         save_path=f"{output_dir}/custom_protocol_comparison.png",
-        show=False
+        show=False,
     )
 
     print(f"\n对比图已保存到 {output_dir}/")
@@ -314,6 +293,7 @@ def demo_custom_protocol():
 # =========================================================================
 # 示例 4: 批量仿真器
 # =========================================================================
+
 
 def demo_batch_simulator():
     """
@@ -336,7 +316,7 @@ def demo_batch_simulator():
         area=(0, 100, 0, 100),
         rounds=500,
         protocols=["leach", "leach-c", "leach-ee"],
-        n_runs=2
+        n_runs=2,
     )
 
     # 打印对比结果
@@ -362,6 +342,7 @@ def demo_batch_simulator():
 # =========================================================================
 # 示例 5: 能量模型调参
 # =========================================================================
+
 
 def demo_energy_model_tuning():
     """
@@ -393,10 +374,7 @@ def demo_energy_model_tuning():
             seed=42,
         )
 
-        results = network.simulate_network(
-            rounds=1000,
-            protocol_name="leach"
-        )
+        results = network.simulate_network(rounds=1000, protocol_name="leach")
         results_list.append(results)
         protocol_names.append(f"E_elec={e_elec:.0e}")
 
@@ -414,7 +392,7 @@ def demo_energy_model_tuning():
         results_list=results_list,
         protocol_names=protocol_names,
         save_path=f"{output_dir}/energy_model_tuning.png",
-        show=False
+        show=False,
     )
 
     print(f"\n对比图已保存到 {output_dir}/")
@@ -423,6 +401,7 @@ def demo_energy_model_tuning():
 # =========================================================================
 # 示例 6: 网络拓扑快照
 # =========================================================================
+
 
 def demo_network_topology_snapshot():
     """
@@ -461,46 +440,52 @@ def demo_network_topology_snapshot():
             for node in network.alive_nodes:
                 if node.is_cluster_head:
                     ax.scatter(
-                        node.x, node.y,
-                        c='red', s=100, marker='*',
-                        label='CH' if idx == 0 else None
+                        node.x, node.y, c="red", s=100, marker="*", label="CH" if idx == 0 else None
                     )
                 else:
                     ax.scatter(
-                        node.x, node.y,
-                        c='blue', s=20, alpha=0.6,
-                        label='Normal' if idx == 0 else None
+                        node.x,
+                        node.y,
+                        c="blue",
+                        s=20,
+                        alpha=0.6,
+                        label="Normal" if idx == 0 else None,
                     )
 
             # 绘制死亡节点
             for node in network.dead_nodes:
                 ax.scatter(
-                    node.x, node.y,
-                    c='gray', s=20, alpha=0.3,
-                    marker='x',
-                    label='Dead' if idx == 0 else None
+                    node.x,
+                    node.y,
+                    c="gray",
+                    s=20,
+                    alpha=0.3,
+                    marker="x",
+                    label="Dead" if idx == 0 else None,
                 )
 
             # 绘制基站
             ax.scatter(
                 network.base_station.position[0],
                 network.base_station.position[1],
-                c='green', s=200, marker='s',
-                label='BS' if idx == 0 else None
+                c="green",
+                s=200,
+                marker="s",
+                label="BS" if idx == 0 else None,
             )
 
             ax.set_title(f"Round {r + 1}")
             ax.set_xlim(0, 100)
             ax.set_ylim(0, 100)
-            ax.set_aspect('equal')
-            ax.legend(loc='upper right', fontsize=8)
+            ax.set_aspect("equal")
+            ax.legend(loc="upper right", fontsize=8)
             ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
 
     output_dir = "results/advanced/topology"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    plt.savefig(f"{output_dir}/topology_snapshots.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{output_dir}/topology_snapshots.png", dpi=150, bbox_inches="tight")
     plt.close()
 
     print(f"拓扑快照已保存到 {output_dir}/topology_snapshots.png")
@@ -509,6 +494,7 @@ def demo_network_topology_snapshot():
 # =========================================================================
 # 示例 7: 节点能量分布分析
 # =========================================================================
+
 
 def demo_energy_distribution_analysis():
     """
@@ -537,18 +523,22 @@ def demo_energy_distribution_analysis():
 
         if (r + 1) in analysis_rounds:
             energies = [n.energy for n in network.nodes]
-            energy_snapshots.append({
-                "round": r + 1,
-                "mean": np.mean(energies),
-                "std": np.std(energies),
-                "min": np.min(energies),
-                "max": np.max(energies),
-                "dead": sum(1 for e in energies if e <= 0),
-            })
+            energy_snapshots.append(
+                {
+                    "round": r + 1,
+                    "mean": np.mean(energies),
+                    "std": np.std(energies),
+                    "min": np.min(energies),
+                    "max": np.max(energies),
+                    "dead": sum(1 for e in energies if e <= 0),
+                }
+            )
 
     # 打印分析结果
     print("\n能量分布分析:")
-    print(f"{'轮次':>6} {'平均能量':>12} {'标准差':>10} {'最小值':>10} {'最大值':>10} {'死亡数':>6}")
+    print(
+        f"{'轮次':>6} {'平均能量':>12} {'标准差':>10} {'最小值':>10} {'最大值':>10} {'死亡数':>6}"
+    )
     print("-" * 60)
     for snap in energy_snapshots:
         print(
@@ -564,6 +554,7 @@ def demo_energy_distribution_analysis():
 # =========================================================================
 # 主函数
 # =========================================================================
+
 
 def parse_args():
     """解析命令行参数"""
@@ -588,7 +579,7 @@ def parse_args():
             "energy_distribution",
             "all",
         ],
-        help="要运行的演示 (默认: all)"
+        help="要运行的演示 (默认: all)",
     )
 
     return parser.parse_args()

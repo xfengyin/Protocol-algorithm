@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from ..models.cluster_head import ClusterHead
 from .base import LEACHProtocol
@@ -40,7 +40,7 @@ class LEACHC(LEACHProtocol):
 
         # 计算每个节点到基站的距离
         bs_pos = network.base_station.position
-        node_info = []
+        node_info: List[Dict[str, Any]] = []
 
         for node in alive_nodes:
             dist_to_bs = node.distance_to(bs_pos)

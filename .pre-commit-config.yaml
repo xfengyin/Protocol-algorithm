@@ -64,10 +64,10 @@ repos:
     hooks:
       - id: flake8
         name: Flake8 lint
+        # 规则只有一份：仓库根的 .flake8（flake8 自动发现它）。
+        # 这里原本又传了一遍 --max-line-length=88 —— 而 black 与 .flake8 都是 100，
+        # 于是 pre-commit 按 88 判本地、CI 按 100 判远端，同一份代码两套标准（本地绿、CI 红）。
         args:
-          - "--max-line-length=88"
-          - "--extend-ignore=E203,W503"
-          - "--per-file-ignores=__init__.py:F401"
           - "--statistics"
 
   # -------------------------------------------
@@ -78,14 +78,17 @@ repos:
     hooks:
       - id: mypy
         name: mypy type check
+        # 与 CI 的 mypy 步骤逐字对齐（此前多了 --disallow-untyped-defs，比 CI 严，
+        # 且缺 --explicit-package-bases 时会直接以「不是合法的 Python 包名」报错退出）。
         args:
           - "--ignore-missing-imports"
           - "--no-strict-optional"
           - "--warn-unused-ignores"
-          - "--disallow-untyped-defs"
+          - "--explicit-package-bases"
         additional_dependencies:
           - types-requests
           - types-setuptools
+          - types-PyYAML==6.0.12.20240311
 
   # -------------------------------------------
   # 提交信息规范检查
@@ -106,5 +109,9 @@ repos:
     hooks:
       - id: bandit
         name: Bandit security scan
-        args: ["-c", "pyproject.toml"]
-        additional_dependencies: ["bandit[toml]"]
+        # 与 CI 同一条判据：>=medium 且 >=medium。默认（low severity）会报
+        # src/ai/sklearn_selector.py 的 B403（import pickle，Low），CI 不放行的那条线，
+        # pre-commit 也不该拦 —— 否则本地永远红、CI 永远绿。
+        # 另外 pyproject.toml 里并没有 [tool.bandit] 段，原来的 -c 指向空配置。
+        args: ["--severity-level=medium", "--confidence-level=medium"]
+        additional_dependencies: ["bandit[toml]==1.7.8"]

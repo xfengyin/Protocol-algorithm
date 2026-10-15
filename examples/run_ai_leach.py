@@ -16,27 +16,23 @@ from __future__ import annotations
 
 import sys
 import time
-import numpy as np
 from pathlib import Path
+from typing import Any, Dict
+
+import numpy as np
 
 # 添加项目根目录到 Python 路径
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.network import Network
-from src.models.node import Node
-from src.energy.radio_model import FirstOrderRadioModel
 from src.ai.trainer import AITrainer
-from src.ai.sklearn_selector import SklearnClusterSelector
-from src.visualization.metrics_plots import MetricsPlotter
+from src.models.network import Network
 from src.visualization.comparison import ComparisonPlotter
+from src.visualization.metrics_plots import MetricsPlotter
 
 
 def generate_training_data(
-    n_nodes: int = 100,
-    training_rounds: int = 500,
-    seed: int = 42,
-    positive_ratio: float = 0.1
+    n_nodes: int = 100, training_rounds: int = 500, seed: int = 42, positive_ratio: float = 0.1
 ) -> tuple:
     """
     使用经典 LEACH 生成训练数据
@@ -62,7 +58,7 @@ def generate_training_data(
         area=(0, 100, 0, 100),
         base_station_pos=(50, 50),
         initial_energy=0.5,
-        seed=seed
+        seed=seed,
     )
 
     features_list = []
@@ -140,18 +136,10 @@ def train_ai_model(X: np.ndarray, y: np.ndarray) -> AITrainer:
     print("=" * 60)
 
     # 创建训练器 (使用随机森林)
-    trainer = AITrainer(
-        model_type="sklearn",
-        model_type_rf="rf",
-        n_estimators=100
-    )
+    trainer = AITrainer(model_type="sklearn", model_type_rf="rf", n_estimators=100)
 
     # 划分训练集和测试集
-    X_train, X_test, y_train, y_test = trainer.prepare_data(
-        X, y,
-        test_size=0.2,
-        random_state=42
-    )
+    X_train, X_test, y_train, y_test = trainer.prepare_data(X, y, test_size=0.2, random_state=42)
 
     print(f"  - 训练集: {len(X_train)} 样本")
     print(f"  - 测试集: {len(X_test)} 样本")
@@ -182,10 +170,7 @@ def train_ai_model(X: np.ndarray, y: np.ndarray) -> AITrainer:
 
 
 def run_ai_leach_simulation(
-    trainer: AITrainer,
-    rounds: int = 1000,
-    seed: int = 42,
-    output_dir: str = "results/ai_leach"
+    trainer: AITrainer, rounds: int = 1000, seed: int = 42, output_dir: str = "results/ai_leach"
 ) -> dict:
     """
     使用训练好的 AI 模型运行 LEACH 仿真
@@ -207,17 +192,13 @@ def run_ai_leach_simulation(
     print("=" * 60)
 
     network = Network(
-        n_nodes=100,
-        area=(0, 100, 0, 100),
-        base_station_pos=(50, 50),
-        initial_energy=0.5,
-        seed=seed
+        n_nodes=100, area=(0, 100, 0, 100), base_station_pos=(50, 50), initial_energy=0.5, seed=seed
     )
 
     selector = trainer.selector
     bs_pos = network.base_station.position
 
-    results = {
+    results: Dict[str, Any] = {
         "rounds": [],
         "alive_nodes": [],
         "dead_nodes": [],
@@ -282,25 +263,21 @@ def run_ai_leach_simulation(
     n_nodes = 100
     alive = results["alive_nodes"]
 
-    first_dead = next(
-        (i for i, n in enumerate(alive) if n < n_nodes),
-        len(alive)
-    )
-    half_dead = next(
-        (i for i, n in enumerate(alive) if n <= n_nodes / 2),
-        len(alive)
+    first_dead = next((i for i, n in enumerate(alive) if n < n_nodes), len(alive))
+    half_dead = next((i for i, n in enumerate(alive) if n <= n_nodes / 2), len(alive))
+
+    results.update(
+        {
+            "network_lifetime": first_dead,
+            "half_network_lifetime": half_dead,
+            "first_dead_round": first_dead,
+            "half_dead_round": half_dead,
+            "total_rounds_simulated": len(results["rounds"]),
+            "final_energy": results["total_energy"][-1] if results["total_energy"] else 0,
+        }
     )
 
-    results.update({
-        "network_lifetime": first_dead,
-        "half_network_lifetime": half_dead,
-        "first_dead_round": first_dead,
-        "half_dead_round": half_dead,
-        "total_rounds_simulated": len(results["rounds"]),
-        "final_energy": results["total_energy"][-1] if results["total_energy"] else 0,
-    })
-
-    print(f"仿真完成!")
+    print("仿真完成!")
     print(f"  - 第一轮有节点死亡: {results['first_dead_round']} 轮")
     print(f"  - 一半节点死亡:     {results['half_dead_round']} 轮")
     print(f"  - 网络生命周期:     {results['network_lifetime']} 轮")
@@ -309,20 +286,14 @@ def run_ai_leach_simulation(
     # 可视化
     print("\n生成可视化图表...")
     plotter = MetricsPlotter()
-    plotter.plot_all_metrics(
-        results,
-        output_dir=output_dir,
-        show=False
-    )
+    plotter.plot_all_metrics(results, output_dir=output_dir, show=False)
     print(f"图表已保存到 {output_dir}/")
 
     return results
 
 
 def compare_ai_vs_classic(
-    classic_results: dict,
-    ai_results: dict,
-    output_dir: str = "results/ai_comparison"
+    classic_results: dict, ai_results: dict, output_dir: str = "results/ai_comparison"
 ):
     """
     对比 AI-LEACH 与经典 LEACH
@@ -341,13 +312,13 @@ def compare_ai_vs_classic(
         results_list=[classic_results, ai_results],
         protocol_names=["Classic LEACH", "AI-LEACH"],
         save_path=f"{output_dir}/ai_vs_classic.png",
-        show=False
+        show=False,
     )
 
     plotter.generate_comparison_report(
         results_list=[classic_results, ai_results],
         protocol_names=["Classic LEACH", "AI-LEACH"],
-        output_dir=output_dir
+        output_dir=output_dir,
     )
 
     # 打印对比摘要
@@ -373,21 +344,13 @@ def compare_ai_vs_classic(
 
 if __name__ == "__main__":
     # 1. 生成训练数据
-    X, y = generate_training_data(
-        n_nodes=100,
-        training_rounds=500,
-        seed=42
-    )
+    X, y = generate_training_data(n_nodes=100, training_rounds=500, seed=42)
 
     # 2. 训练 AI 模型
     trainer = train_ai_model(X, y)
 
     # 3. 运行 AI-LEACH 仿真
-    ai_results = run_ai_leach_simulation(
-        trainer,
-        rounds=1000,
-        seed=42
-    )
+    ai_results = run_ai_leach_simulation(trainer, rounds=1000, seed=42)
 
     # 运行经典 LEACH 作为对比
     print("\n" + "=" * 60)
@@ -395,17 +358,10 @@ if __name__ == "__main__":
     print("=" * 60)
 
     classic_network = Network(
-        n_nodes=100,
-        area=(0, 100, 0, 100),
-        base_station_pos=(50, 50),
-        initial_energy=0.5,
-        seed=42
+        n_nodes=100, area=(0, 100, 0, 100), base_station_pos=(50, 50), initial_energy=0.5, seed=42
     )
 
-    classic_results = classic_network.simulate_network(
-        rounds=1000,
-        protocol_name="leach"
-    )
+    classic_results = classic_network.simulate_network(rounds=1000, protocol_name="leach")
 
     print(f"经典 LEACH - 生命周期: {classic_results['network_lifetime']} 轮")
 

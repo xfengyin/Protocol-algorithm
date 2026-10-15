@@ -6,7 +6,7 @@ import itertools
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -76,7 +76,7 @@ class ParallelSimulationEngine:
         param_values = list(param_grid.values())
 
         for params in itertools.product(*param_values):
-            config_dict = {
+            config_dict: Dict[str, Any] = {
                 "n_nodes": base_config.n_nodes,
                 "area": base_config.area,
                 "base_station_pos": base_config.base_station_pos,
@@ -176,7 +176,7 @@ class ParallelSimulationEngine:
         self,
         results: List[SimulationResult],
         param_names: List[str],
-        param_values: Tuple[Tuple[Any, ...], ...],
+        param_values: Sequence[Sequence[Any]],
     ) -> Dict[str, Any]:
         """
         聚合结果
@@ -189,7 +189,7 @@ class ParallelSimulationEngine:
         Returns:
             聚合后的结果
         """
-        aggregated = {
+        aggregated: Dict[str, Any] = {
             "summary": {},
             "by_params": {},
             "raw_results": [r.__dict__ for r in results],
@@ -227,6 +227,27 @@ class ParallelSimulationEngine:
                         [r.results.get("total_energy", 0) for r in matching]
                     ),
                 }
+
+        # summary = 跨全部运行的总体摘要（标量）。**这个字段以前是空的**：
+        # aggregated["summary"] 初始化成 {} 之后从未被填充，而 BatchSimulator.compare_protocols
+        # 读的正是 summary["network_lifetime"] ⇒ 每个协议都取默认值 0，best_protocol 恒等于
+        # 协议列表的第一个（max() 在相同 key 上返回第一个元素）。
+        # 这个错值会被 examples/advanced_usage.py 与 docs/tutorial.md 直接消费，所以按「公开输出
+        # 恒错」处理：填真值，并由 tests/test_batch_simulator.py 断言 best_protocol 是较优的那个。
+        # 保持标量（不改成 dict）：compare_protocols 要把它们放进 max(..., key=...) 里比较；
+        # 分参数组合的明细仍在 by_params 里。
+        if results:
+            aggregated["summary"] = {
+                "network_lifetime": float(
+                    np.mean([r.results.get("network_lifetime", 0) for r in results])
+                ),
+                "half_network_lifetime": float(
+                    np.mean([r.results.get("half_network_lifetime", 0) for r in results])
+                ),
+                "avg_energy_consumption": float(
+                    np.mean([r.results.get("total_energy", 0) for r in results])
+                ),
+            }
 
         return aggregated
 
@@ -322,7 +343,7 @@ class BatchSimulator:
         """
         protocols = protocols or ["leach", "leach_c", "leach_ee", "leach_m"]
 
-        comparison = {"protocols": {}, "summary": {}}
+        comparison: Dict[str, Any] = {"protocols": {}, "summary": {}}
 
         for protocol in protocols:
             config = SimulationConfig(
@@ -376,4 +397,5 @@ class BatchSimulator:
         import json
 
         with open(input_path, "r") as f:
-            return json.load(f)
+            loaded: Dict[str, Any] = json.load(f)
+            return loaded

@@ -3,8 +3,12 @@
 # 导致同一份代码在两种标准下互相打架。
 max-line-length = 100
 extend-ignore = E203,W503
+# examples/ 下的脚本必须先 sys.path.insert(项目根) 再 import src.*，
+# 否则 `python examples/xxx.py` 直接 ImportError —— E402 是这个引导顺序的必然代价，
+# 只对 examples/ 放行（src/、tests/、根脚本仍然照查 E402）。
 per-file-ignores =
     __init__.py:F401
+    examples/*.py:E402
 exclude =
     .git,
     __pycache__,

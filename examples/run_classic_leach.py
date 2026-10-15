@@ -21,8 +21,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.network import Network
 from src.energy.radio_model import FirstOrderRadioModel
+from src.models.network import Network
 from src.visualization.metrics_plots import MetricsPlotter
 
 
@@ -30,7 +30,7 @@ def run_classic_leach(
     n_nodes: int = 100,
     rounds: int = 1000,
     seed: int = 42,
-    output_dir: str = "results/classic_leach"
+    output_dir: str = "results/classic_leach",
 ) -> dict:
     """
     运行经典 LEACH 协议仿真
@@ -70,14 +70,14 @@ def run_classic_leach(
         base_station_pos=(50, 50),
         energy_model=energy_model,
         initial_energy=0.5,
-        seed=seed
+        seed=seed,
     )
 
-    print(f"网络配置:")
+    print("网络配置:")
     print(f"  - 节点数量: {n_nodes}")
-    print(f"  - 区域范围: 100m x 100m")
-    print(f"  - 基站位置: (50, 50)")
-    print(f"  - 初始能量: 0.5 J/节点")
+    print("  - 区域范围: 100m x 100m")
+    print("  - 基站位置: (50, 50)")
+    print("  - 初始能量: 0.5 J/节点")
     print(f"  - 随机种子: {seed}")
     print(f"  - 存活节点: {network.n_alive}")
     print()
@@ -93,11 +93,9 @@ def run_classic_leach(
 
     print(f"开始仿真 (最大 {rounds} 轮)...")
     results = network.simulate_network(
-        rounds=rounds,
-        protocol_name="leach",
-        stop_condition=stop_when_all_dead
+        rounds=rounds, protocol_name="leach", stop_condition=stop_when_all_dead
     )
-    print(f"仿真完成!")
+    print("仿真完成!")
     print()
 
     # =========================================================================
@@ -119,11 +117,7 @@ def run_classic_leach(
     # =========================================================================
     print("生成可视化图表...")
     plotter = MetricsPlotter()
-    plotter.plot_all_metrics(
-        results,
-        output_dir=output_dir,
-        show=False
-    )
+    plotter.plot_all_metrics(results, output_dir=output_dir, show=False)
     print(f"图表已保存到 {output_dir}/")
 
     return results
@@ -136,11 +130,7 @@ def demo_single_round():
     print("=" * 60)
 
     network = Network(
-        n_nodes=20,
-        area=(0, 50, 0, 50),
-        base_station_pos=(25, 25),
-        initial_energy=0.5,
-        seed=42
+        n_nodes=20, area=(0, 50, 0, 50), base_station_pos=(25, 25), initial_energy=0.5, seed=42
     )
 
     print(f"\n初始状态: {network.n_alive} 个节点, 总能量 {network.total_energy:.4f} J")
@@ -164,20 +154,13 @@ def demo_custom_protocol_params():
     print("=" * 60)
 
     network = Network(
-        n_nodes=100,
-        area=(0, 100, 0, 100),
-        base_station_pos=(50, 50),
-        initial_energy=0.5,
-        seed=42
+        n_nodes=100, area=(0, 100, 0, 100), base_station_pos=(50, 50), initial_energy=0.5, seed=42
     )
 
     # 尝试不同的簇头概率
     for p in [0.03, 0.05, 0.08]:
         network.reset()
-        results = network.simulate_network(
-            rounds=500,
-            protocol_name="leach"
-        )
+        results = network.simulate_network(rounds=500, protocol_name="leach")
         print(
             f"簇头概率 p={p:.2f}: "
             f"生命周期={results['network_lifetime']} 轮, "

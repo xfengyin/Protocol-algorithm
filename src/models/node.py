@@ -63,7 +63,7 @@ class Node:
         else:
             raise TypeError(f"Cannot compute distance to {type(other)}")
 
-        return np.sqrt((self.x - ox) ** 2 + (self.y - oy) ** 2)
+        return float(np.sqrt((self.x - ox) ** 2 + (self.y - oy) ** 2))
 
     def consume_energy(self, amount: float):
         """消耗能量"""

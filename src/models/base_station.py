@@ -27,7 +27,7 @@ class BaseStation:
         else:
             ox, oy = node.x, node.y
 
-        return np.sqrt((self.x - ox) ** 2 + (self.y - oy) ** 2)
+        return float(np.sqrt((self.x - ox) ** 2 + (self.y - oy) ** 2))
 
     def receive_data(self, size_bits: int):
         """接收数据"""

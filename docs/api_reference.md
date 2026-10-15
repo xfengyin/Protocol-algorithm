@@ -1222,8 +1222,8 @@ BatchSimulator(engine: Optional[ParallelSimulationEngine] = None)
         ...
     },
     'summary': {
-        'best_protocol': str,       # 最优协议名
-        'lifetimes': {              # 各协议生命周期
+        'best_protocol': str,       # 最优协议名 = lifetimes 里最大的那个
+        'lifetimes': {              # 各协议生命周期：该协议 n_runs 次运行的均值
             'leach': float,
             ...
         }

@@ -99,6 +99,16 @@ class EnergyConfig:
             raise ValueError(f"d_threshold must be positive, got {self.d_threshold}")
 
 
+# AI 选择器的合法框架名 —— **唯一真相源**。
+# 定义在 schema 这一层（AIConfig.model_type 的合法值），由 src/ai/trainer.py 的构造分支消费。
+# 在此之前这个集合有三份定义、两处互相矛盾：这里写着 sklearn/pytorch/lightgbm，
+# 而 trainer 只实现了 sklearn/pytorch 两条分支 —— 用户配 lightgbm 会「校验通过、
+# 构造时抛 Unknown model type」。lightgbm 也从未落地过（全仓零 import），故从合法值中删除。
+# 放在 config 而不是 ai：validator 只依赖 yaml，反过来让 validator import trainer
+# 会把 sklearn 拉进配置模块（且 trainer 比 config 更"重"）。
+SUPPORTED_MODEL_TYPES: Tuple[str, ...] = ("sklearn", "pytorch")
+
+
 @dataclass
 class AIConfig:
     """AI 配置"""
@@ -116,8 +126,11 @@ class AIConfig:
 
     def _validate(self) -> None:
         """验证配置有效性"""
-        if self.model_type not in ["sklearn", "pytorch", "lightgbm"]:
-            raise ValueError(f"Unknown model type: {self.model_type}")
+        if self.model_type not in SUPPORTED_MODEL_TYPES:
+            raise ValueError(
+                f"Unknown model type: {self.model_type}. "
+                f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
+            )
 
         if self.feature_normalization not in ["zscore", "minmax", "robust", "none"]:
             raise ValueError(f"Unknown normalization: {self.feature_normalization}")
