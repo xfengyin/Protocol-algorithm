@@ -200,17 +200,18 @@ poetry install
 ### 安装开发依赖
 
 ```bash
-# 安装项目全部依赖（仿真 + AI + 开发工具）
+# 安装项目全部依赖（基础 + AI + 测试工具）与开发工具
 pip install -e ".[all,dev]"
 
-# 仅安装仿真依赖
-pip install -e ".[simulation]"
-
-# 仅安装 AI 依赖
+# 仅安装 AI 依赖（只有 torch）
 pip install -e ".[ai]"
 
 # 安装开发工具（格式化、类型检查、测试）
 pip install -e ".[dev]"
+
+# 注意：原先的 ".[simulation]" extra 已删除 —— 它唯一的成员 simpy 全仓零 import。
+# 基础依赖（numpy / pandas / matplotlib / scikit-learn / scipy / pyyaml）已经覆盖仿真与绘图。
+# torch 在 CI 里装的是 CPU 轮子（runner 无 GPU，CUDA 版会多拉约 2.5GB）。
 ```
 
 ### 验证安装

@@ -64,6 +64,28 @@
 - 删除 10 处 `github.server_url` 判断出来的 GitHub 分支（本仓库只跑 Gitea Actions），
   四个 job 的 `runs-on` 直写 `amd64`
 
+#### 依赖瘦身与 CI 成本（共享 runner 上的实际收益）
+- `requirements.txt` 删掉 **7 个零 import 的依赖**：`jupyter` / `ipykernel` / `tqdm` / `simpy` /
+  `shap` / `seaborn` / `lightgbm`。判据是 `git ls-files '*.py' | xargs grep -nE '^\s*(import|from) <包名>'`
+  零命中，并逐一核过字符串误报：`shap` 的命中全是 `.shape[..]`，`seaborn` 只有
+  `style="seaborn-v0_8-darkgrid"`（matplotlib 自带样式名），`lightgbm` 只有一处校验字符串。
+  光是 `jupyter` 一项就带进约 80 个传递依赖 —— test job 的安装阶段长期在 20 分钟量级，
+  而 NAS 上只有 2 个 amd64 槽位，一个仓的 run 会卡住其他仓的验收
+- `torch` 改由 CI 显式安装 **CPU 轮子**：PyPI 上 Linux 的默认轮子会额外拉 `nvidia-*` CUDA
+  依赖（约 2.5GB），而 runner 是纯 CPU 机器。实测 CPU 轮子 196MB、METADATA 里 nvidia 依赖
+  条数为 0，`download.pytorch.org` 从 NAS 直连可达（HTTP 200 / 3.3s）
+- 补上 `scipy` 的显式声明（`src/models/network.py` 的 `cKDTree` 真实使用，此前只靠
+  scikit-learn 传递带入；scikit-learn 自身依赖 scipy，所以不增加任何安装量）
+- `pyproject.toml` 的可选依赖同步收窄：删掉 `simulation` extra（唯一成员是没被 import 的
+  `simpy`）、`ai` extra 只留 `torch`、`dev` 去掉 `jupyter`/`ipykernel`
+- 矩阵 `3.11 + 3.12` **保留**，并把依据写进 workflow 注释：`requires-python = ">=3.11"` 是
+  无上界的对外声明，两条腿分别是「声明窗口下界/上界各一份证据」，砍掉 3.12 等于声明了却没证据；
+  成本大头是安装而非测试，所以省的是安装。判据：两腿合计仍 >15 分钟才考虑砍腿
+- `model_type` 的合法值从三份（两份互相矛盾）收敛为**一处**：
+  `src/config/validator.py::SUPPORTED_MODEL_TYPES = ("sklearn", "pytorch")` 由
+  `src/ai/trainer.py` 消费；`lightgbm` 从合法值中删除（它从未被实现，此前用户会
+  「校验通过 → 构造时抛 Unknown model type」，这条死分支也是 `lightgbm` 依赖的去处）
+
 ### Docs (2026-10-15)
 - README：修正 `ClassicLEACH(network)`、`python main.py --config ...`（main.py 不接收任何参数）、
   `results['total_energy']`（是逐轮列表不是标量）、`NetworkAnimator`（实际是
@@ -84,9 +106,8 @@
   属于公开 API 输出变化，需要单独一轮修 + 由 CI 验证
 - `config/leach_ai.yaml` 的 `protocol: leach_ai` 未注册进 `LEACHRegistry`，按配置跑会报
   `Unknown protocol`；AI 路径需走 `examples/run_ai_leach.py`
-- `requirements.txt` 与 `pyproject.toml` 是两份平行依赖清单：`simpy` 只在 requirements.txt，
-  `scipy`（`src/models/network.py` 实际使用）两份都没有；另有无 import 的依赖 seaborn /
-  tqdm / simpy / lightgbm / shap
+- `requirements.txt` 与 `pyproject.toml` 仍是两份清单（内容已对齐：pyproject 的 dependencies
+  是 requirements 的子集 + 测试工具），理想是合成一份或由 `-e .` 生成，需要所有者定口径
 - `src/config/validator.py`（`FullConfig.from_yaml`）没有任何入口调用，覆盖率 0%，
   `cli.py` 用的是自己的 `load_config`
 - `COMPLIANCE.md` 声明「禁止用于任何商业目的」，与仓库根 `LICENSE` 的 MIT 授权冲突，

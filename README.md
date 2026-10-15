@@ -38,10 +38,15 @@
 ## 安装
 
 ```bash
-pip install -e ".[all]"  # 安装全部依赖
-pip install -e ".[simulation]"  # 仅仿真依赖
-pip install -e ".[ai]"  # AI依赖
+pip install -e ".[all]"  # 全部依赖（= 基础依赖 + torch + 测试工具）
+pip install -e ".[ai]"   # 只加 AI 依赖（torch）
+pip install -e ".[dev]"  # 只加开发工具（pytest / black / isort / mypy）
 ```
+
+> 依赖清单只保留有真实 import 使用者的包（`requirements.txt` 顶部写了判据与删除记录）。
+> `jupyter` / `ipykernel` / `tqdm` / `simpy` / `shap` / `seaborn` / `lightgbm` 于 2026-10-15 删除，
+> 原先的 `.[simulation]` extra 也一并删除（它唯一的成员就是没被 import 的 `simpy`）。
+> 图形/动画/并行仿真所需的库都在基础依赖里（numpy / pandas / matplotlib）。
 
 ## 快速开始
 

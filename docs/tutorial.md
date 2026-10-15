@@ -122,14 +122,15 @@ python -c "from src.models.network import Network; print('Installation OK')"
 |----|------|----------|
 | numpy | 数值计算与向量化 | 直接依赖 |
 | pandas | 结果表处理 | 直接依赖（`src/` 中少量使用） |
-| scipy | KD-Tree 空间索引（`src/models/network.py` 用 `scipy.spatial.cKDTree`） | **没有在任何依赖清单里声明** —— 目前靠 scikit-learn 传递带入；环境里缺它时 `pip install scipy` |
+| scipy | KD-Tree 空间索引（`src/models/network.py` 用 `scipy.spatial.cKDTree`） | 2026-10-15 起**已显式声明**（此前只靠 scikit-learn 传递带入） |
 | matplotlib | 图表绘制 | 直接依赖 |
-| seaborn | 统计可视化 | **代码里没有任何 import**（`seaborn-v0_8-darkgrid` 是 matplotlib 自带的样式名，不需要 seaborn） |
+| ~~seaborn~~ | 统计可视化 | **2026-10-15 已从依赖清单删除**：零 import（`seaborn-v0_8-darkgrid` 是 matplotlib 自带的样式名，不需要 seaborn 包） |
 | scikit-learn | ML 簇头选择 | 直接依赖 |
-| torch | PyTorch 簇头选择 | `[ai]` extra，仅 `src/ai/pytorch_selector.py` 用 |
-| lightgbm / shap | AI 扩展 | 在 `[ai]` extra 与 requirements.txt 里，**代码里没有任何 import** |
-| tqdm | 进度条 | 在依赖清单里，**代码里没有任何 import** |
-| simpy | 「事件驱动」 | 在依赖清单里，**代码里没有任何 import**（README 说的「simpy 风格事件队列」指设计风格，用的是自研队列） |
+| torch | PyTorch 簇头选择 | `[ai]` extra，仅 `src/ai/pytorch_selector.py` 用；CI 装 CPU 轮子 |
+| ~~lightgbm / shap~~ | AI 扩展 | **2026-10-15 已从依赖清单删除**：全仓零 import（`shap` 的命中全是 `.shape[..]`，`lightgbm` 只有一处校验字符串） |
+| ~~tqdm~~ | 进度条 | **已删除**：零 import |
+| ~~simpy~~ | 「事件驱动」 | **已删除**：零 import（README 说的「simpy 风格事件队列」指设计风格，用的是自研队列） |
+| ~~jupyter / ipykernel~~ | Notebook | **已删除**：零 import；jupyter 一项就带约 80 个传递依赖，把 CI 安装阶段拖到 20 分钟量级 |
 | pyyaml | 配置文件解析 | 直接依赖 |
 
 ---
