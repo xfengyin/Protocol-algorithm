@@ -62,14 +62,14 @@ all = [
 
 [project.scripts]
 leach-sim = "main:main"
-leach-cli = "cli:cli"
+leach-cli = "cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.black]
 line-length = 100
-target-version = ['py39', 'py310', 'py311']
+target-version = ['py311', 'py312']
 
 [tool.isort]
 profile = "black"

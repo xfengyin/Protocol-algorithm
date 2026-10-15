@@ -20,7 +20,9 @@ simulation:
   seed: 42
 
 # Protocol Configuration
-protocol: leach  # leach, leach-c, leach-ee, leach-m, leach_ai
+protocol: leach  # leach, leach-c, leach-ee, leach-m
+# 注意：没有 leach_ai —— LEACHRegistry 里不存在这个名字，写它会抛
+# Unknown protocol: leach_ai。AI 簇头选择见 examples/run_ai_leach.py。
 
 # LEACH Parameters
 leach:

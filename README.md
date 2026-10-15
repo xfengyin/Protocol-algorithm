@@ -47,7 +47,6 @@ pip install -e ".[ai]"  # AI依赖
 
 ```python
 from src.models.network import Network
-from src.leach.classic import ClassicLEACH
 from src.energy.radio_model import FirstOrderRadioModel
 
 # 初始化能量模型
@@ -61,44 +60,74 @@ network = Network(
     energy_model=energy_model
 )
 
-# 运行仿真
-leach = ClassicLEACH(network)
-results = network.simulate_network(rounds=5000)
+# 运行仿真：协议实现按 protocol_name 从 LEACHRegistry 取（"leach" -> ClassicLEACH(p=0.05)），
+# 不需要先造一个协议实例；要换簇头概率就改注册表里的实现，见 examples/advanced_usage.py
+results = network.simulate_network(rounds=5000, protocol_name="leach")
 
 # 查看结果
 print(f"网络生命周期: {results['network_lifetime']} 轮")
-print(f"总能耗: {results['total_energy']:.2f} J")
+print(f"最终剩余能量: {results['final_energy']:.4f} J")
+# 注意 results['total_energy'] 是「每轮」剩余能量的列表，不是标量：末轮总能量 = final_energy
+print(f"逐轮记录条数: {len(results['total_energy'])}")
 ```
 
 ## 命令行使用
 
 ```bash
-# 运行经典 LEACH
-python main.py --config config/config.yaml --output results/leach/
+# 最小示例：main.py 不接收任何命令行参数（100 节点 / 1000 轮 / 种子 42，硬编码在文件里）
+python main.py
 
-# 运行 AI 增强 LEACH
-python main.py --config config/leach_ai.yaml --output results/leach_ai/
+# 完整命令行接口在 cli.py：--config --output --protocol --rounds --nodes --seed --no-plot
+python cli.py --config config/config.yaml --output results/leach/
+python cli.py --protocol leach_ee --rounds 5000 --nodes 100   # 协议名用下划线形式
+python cli.py --rounds 1000 --no-plot                        # 不画图，只存 results.json
+
+# 注意 config/leach_ai.yaml 里的 protocol: leach_ai 目前没有注册进 LEACHRegistry，
+# `python cli.py --config config/leach_ai.yaml` 会报 Unknown protocol（可用
+# python -c "from src.leach.variants import LEACHRegistry; print(LEACHRegistry.list_protocols())"
+# 查看已注册的协议名）。AI 簇头选择的可用入口是 examples/run_ai_leach.py。
 
 # 对比实验
 python examples/compare_variants.py --output results/comparison/
 ```
+
+## 示例脚本
+
+`examples/` 下的每个脚本都可以直接 `python examples/<name>.py` 运行（脚本自己把项目根加进 `sys.path`）：
+
+| 脚本 | 行数 | 演示内容 |
+|------|------|----------|
+| `run_classic_leach.py` | 177 | 最小可用路径：建网 -> 跑经典 LEACH -> 画指标图 -> 存结果，适合第一次上手 |
+| `run_ai_leach.py` | 369 | 用经典 LEACH 生成训练集 -> 训练 sklearn 选择器 -> 手动逐轮用模型选簇头，并与经典 LEACH 对比（不依赖注册表里存在 AI 协议） |
+| `compare_variants.py` | 387 | 四种变体（LEACH / C / EE / M）多次重复实验 -> 汇总统计、排名、对比图表 |
+| `reproduce.py` | 488 | 复现 Heinzelman 2000 论文：生命周期曲线、能量消耗趋势、簇头概率 p 参数扫描 + Markdown 报告 |
+| `advanced_usage.py` | 608 | 高级用法：并行仿真、参数扫描、自定义协议注册、批量实验、拓扑动画、能量模型调参 |
+
+`examples/` 与 `main.py` / `cli.py` 都在 CI 的 lint（black / isort / flake8）与 mypy 范围内。
 
 ## 项目结构
 
 ```
 Protocol-algorithm/
 ├── src/
-│   ├── leach/          # LEACH 协议变体
-│   ├── models/         # 数据模型
-│   ├── energy/        # 能量模型
-│   ├── ai/            # AI 优化
-│   ├── simulation/    # 仿真引擎
-│   ├── visualization/ # 可视化
-│   └── data/          # 数据生成
-├── config/            # 配置文件
-├── tests/            # 单元测试
-├── docs/             # 文档
-└── examples/         # 示例
+│   ├── leach/          # LEACH 协议变体（classic / c / ee / m + 注册表 LEACHRegistry）
+│   ├── models/         # 数据模型（node / cluster_head / base_station / network）
+│   ├── energy/         # 能量模型（含 radio_model.py 兼容层）
+│   ├── ai/             # AI 优化（选择器基类 + sklearn / PyTorch 实现 + trainer）
+│   ├── simulation/     # 仿真引擎（并行 / 批量 / 参数扫描）
+│   ├── visualization/  # 可视化（指标图 / 对比图 / 动画）
+│   ├── data/           # 训练数据生成与采样
+│   └── config/         # 配置校验（FullConfig.from_yaml；当前 CLI 未使用，见 CONTRIBUTING）
+├── config/             # 运行配置（config.yaml / leach_ai.yaml）
+├── examples/           # 5 个可直接运行的示例（见上一节表格）
+├── tests/              # 单元测试（pytest）
+├── docs/               # 教程 / 算法说明 / API 参考
+├── main.py             # 零参数最小示例
+├── cli.py              # 命令行接口
+├── requirements.txt    # CI 安装的依赖清单
+├── pyproject.toml      # 打包元数据 / extras / black / isort / mypy 配置
+├── .flake8             # flake8 规则（唯一真相源，CI 与 pre-commit 都读它）
+└── .gitea/workflows/ci.yml  # CI 门禁定义
 ```
 
 ## 算法变体
@@ -153,7 +182,7 @@ Protocol-algorithm/
 - 完善的性能评估指标（Accuracy, Precision, Recall, F1-score）
 - 数据预处理流程标准化
 
-**集成方式**: 在 `src/ai/` 目录添加了数据集兼容接口和评估模块
+**集成方式**: 在 `src/ai/` 目录实现了特征工程（`feature_engineering.py`）与训练器（`trainer.py`）；数据集与评估指标本身没有落地（README 的未来扩展里保留了 WSN-DS 数据集一项）
 
 ### 3. WSN-Scheduling-with-Reinforcement-Learning
 **GitHub**: https://github.com/AliAmini93/WSN-Scheduling-with-Reinforcement-Learning
@@ -168,7 +197,7 @@ Protocol-algorithm/
 ### 4. 其他项目借鉴
 
 - **Slipstream-Max/wsn**: 简单直观的可视化设计
-- **Nachi28/WSN_LEACH**: Excel导出功能集成到结果保存模块
+- **Nachi28/WSN_LEACH**: 结果保存思路（本项目落成 `results.json` + 图表，**没有** Excel/xlsx 导出）
 - **LEACH-PY**: 经典协议实现的参考
 
 ## 未来扩展方向
@@ -209,11 +238,32 @@ plotter.plot_network_lifetime(results)
 使用 `Animator` 类生成网络拓扑变化的动画：
 
 ```python
-from src.visualization.animator import NetworkAnimator
+from src.visualization.animator import AnimatorConfig, OptimizedNetworkAnimator
 
-animator = NetworkAnimator(network)
-animator.animate(num_frames=100, interval=100)
+animator = OptimizedNetworkAnimator(
+    network,                                  # 必填：要动画化的 Network
+    config=AnimatorConfig(interval=100),      # 可选：帧间隔等动画参数
+)
+animator.animate(rounds=100)                  # rounds=播放多少轮（不是 num_frames）
 ```
+
+## 质量门禁（CI）
+
+`.gitea/workflows/ci.yml` 里每个检查都是硬门禁：**能红也能绿**。判据与负对照（证明这个检查
+自己会报错，而不是永远沉默）都写在 workflow 里：
+
+| 检查 | 判据 | 负对照 |
+|------|------|--------|
+| black / isort / flake8 | `src/ tests/ examples/ main.py cli.py __init__.py` 全部无差异；规则只有 `.flake8` 一份 | —— （格式门禁靠 diff 自证） |
+| mypy | 上述范围 **0 错误**（改前是 `continue-on-error: true` + 41 个存量错误） | 植入必然出错的类型赋值，断言 mypy 非零退出 |
+| bandit | `src/` 上 `--severity-level=medium --confidence-level=medium` 无未登记告警 | 植入 `eval()` / `shell=True`，断言非零退出 |
+| pip-audit | 审计 CI 真正装上的依赖集，无未登记漏洞（登记用 `--ignore-vuln <ID>`） | 审计 `pyyaml==5.3.1`，断言非零退出 |
+| pytest | Python 3.11 / 3.12 两个矩阵腿全绿 | —— （49 个用例本身就带断言） |
+| 覆盖率 | `--cov-fail-under=44`：存量实测 1930 行覆盖 858 行 = 44.46%，阈值取 floor 值 | 单跑一个测试文件 + 阈值 90，断言因「覆盖率未达标」而失败 |
+
+覆盖率是**棘轮**（ratchet）：44% 是当前存量的地板，不是达标线 —— 新增未测代码会让 job 变红，
+要加功能就得同时加测试。`data/`、`visualization/`、`src/config/` 目前几乎无测试覆盖，
+抬高阈值需要先补测试（见 CONTRIBUTING 的「覆盖率要求」）。
 
 ## License
 

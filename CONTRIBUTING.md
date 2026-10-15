@@ -183,11 +183,14 @@ pip install --upgrade pip
 **或使用 conda**：
 
 ```bash
-conda create -n leach-sim python=3.10
+conda create -n leach-sim python=3.11
 conda activate leach-sim
 ```
 
-**或使用 Poetry**：
+**（可选）Poetry**：
+
+`pyproject.toml` 用的是 PEP 621 元数据 + setuptools 构建后端，项目自身不依赖 Poetry，
+CI 也只用 pip。若你本机习惯 Poetry，请自行确认它能读 `[project]` 表：
 
 ```bash
 pip install poetry
@@ -228,39 +231,30 @@ python examples/run_classic_leach.py
 
 ### PEP 8 与代码格式化
 
-**使用 Black 进行格式化**（强制风格）：
+CI 检查的范围是 `src/ tests/ examples/ main.py cli.py __init__.py`（`examples/` 与两个入口
+脚本也在门禁内），本地请用同样的范围与版本，否则会出现「本地绿、CI 红」：
 
 ```bash
-# 格式化所有代码
-black src/ tests/ examples/
+# CI lint job 用的版本（tools 依赖只有这些，装进自己的 venv 即可）
+pip install black==24.3.0 isort==5.13.2 flake8==7.0.0 mypy==1.9.0 types-PyYAML==6.0.12.20240311
 
-# 检查格式（不修改）
-black --check src/ tests/
+# 行长度 / 目标 Python 版本来自 pyproject.toml 的 [tool.black]，不要再用 --line-length 覆盖
+black src/ tests/ examples/ main.py cli.py __init__.py
+isort src/ tests/ examples/ main.py cli.py __init__.py
 
-# 指定行长度
-black --line-length 100 src/
-```
+# 检查（不修改）
+black --check --diff src/ tests/ examples/ main.py cli.py __init__.py
+isort --check-only --diff src/ tests/ examples/ main.py cli.py __init__.py
 
-**使用 isort 整理导入**：
+# flake8 的规则只有一份：仓库根的 .flake8（flake8 自动读取）。
+# 不要在这里再传 --max-line-length / --extend-ignore / --per-file-ignores，
+# 重复一份规则就会和 .flake8 漂移（历史上 CI 传 88、.flake8 写 100 就是这么来的）。
+flake8 src/ tests/ examples/ main.py cli.py __init__.py --statistics
 
-```bash
-# 排序导入
-isort src/ tests/
-
-# 检查导入排序
-isort --check src/ tests/
-```
-
-**使用 flake8 进行规范检查**：
-
-```bash
-flake8 src/ tests/ --max-line-length=100 --extend-ignore=E203,W503
-```
-
-**使用 mypy 进行类型检查**：
-
-```bash
-mypy src/ --ignore-missing-imports
+# mypy 是硬门禁：存量 0 错误，新增类型错误会让 CI 红
+mypy src/ tests/ examples/ main.py cli.py __init__.py \
+  --ignore-missing-imports --no-strict-optional \
+  --warn-unused-ignores --explicit-package-bases
 ```
 
 ### 命名规范
@@ -509,7 +503,12 @@ Migration guide:
    - Black 格式化
    - isort 导入排序
    - flake8 规范检查
-   - mypy 类型检查（可选）
+   - mypy 类型检查（与 CI 同一判据，**不是可选的**：本地不过 = CI 必红）
+   - bandit 安全扫描（>=medium）
+   - 提交信息格式
+
+   这些 hook 的参数与 CI 逐字对齐（flake8 只读 `.flake8`、mypy 用同一组 flags、
+   bandit 同为 `--severity-level=medium --confidence-level=medium`）。
 
 ---
 
@@ -539,15 +538,24 @@ pytest tests/ -n auto
 
 ### 覆盖率要求
 
-| 模块类型 | 最低覆盖率 | 说明 |
-|----------|-----------|------|
-| 核心仿真逻辑 | >= 90% | `src/leach/`, `src/simulation/` |
-| 能量模型 | >= 90% | `src/energy/` |
-| AI 优化模块 | >= 80% | `src/ai/` |
-| 可视化模块 | >= 70% | `src/visualization/` |
-| 工具类 | >= 80% | `src/utils/`, `src/config/` |
+CI 强制的只有一条：**整体覆盖率不得低于 44%**（`--cov-fail-under=44`）。
+44 不是拍的：存量实测 1930 条语句覆盖 858 条 = 44.46%
+（run 10185 与 run 10191 两次独立运行数字相同，取自 CI 上传的 `coverage.xml`），
+阈值取 floor 值，留 0.46 个百分点 ≈ 9 条语句的容差。它是**棘轮**，不是达标线：
+存量不许下降，新增未测代码就让 CI 红，加功能要同时加测试。
 
-**整体项目覆盖率目标：>= 80%**
+下面的分模块目标是**期望值，目前尚未达到**（整体才 44.46%），改动的模块请尽量往上拉：
+
+| 模块类型 | 目标覆盖率 | 当前状况 |
+|----------|-----------|----------|
+| 核心仿真逻辑 | >= 90% | `src/leach/` 有测试；`src/simulation/` 偏低 |
+| 能量模型 | >= 90% | `src/energy/` 有测试 |
+| AI 优化模块 | >= 80% | `src/ai/` 有测试（选择器与训练器） |
+| 可视化模块 | >= 70% | `src/visualization/` **当前 0%** —— 画图代码没有测试 |
+| 数据模块 | >= 80% | `src/data/` **当前 0%** —— 生成器与采样器没有测试 |
+| 配置校验 | >= 80% | `src/config/validator.py` **当前 0%**，且没有任何入口调用它（`cli.py` 用的是自己的 `load_config`） |
+
+（说明：仓库里没有 `src/utils/` 目录，旧表格里那一行已删。）
 
 ### 编写测试用例
 
@@ -613,12 +621,13 @@ class TestClassicLEACH:
         return Network(n_nodes=100, area=(0, 100, 0, 100))
 
     @pytest.fixture
-    def leach(self, network: Network) -> ClassicLEACH:
-        return ClassicLEACH(network, cluster_probability=0.05)
+    def leach(self) -> ClassicLEACH:
+        # 协议实例只接收簇头概率 p；网络在调用 select_cluster_heads 时传进去
+        return ClassicLEACH(p=0.05)
 
-    def test_cluster_head_selection_count(self, leach: ClassicLEACH) -> None:
+    def test_cluster_head_selection_count(self, leach: ClassicLEACH, network: Network) -> None:
         """测试簇头数量在期望范围内"""
-        cluster_heads = leach.select_cluster_heads(current_round=0)
+        cluster_heads = leach.select_cluster_heads(network)
 
         expected_count = 100 * 0.05  # p = 0.05
         # 允许 50% 波动（随机算法）
@@ -685,7 +694,7 @@ python -m timeit -n 100 "from src.leach.classic import ClassicLEACH; ..."
 - [ ] 所有公共函数添加了类型提示
 - [ ] 所有公共函数添加了文档字符串
 - [ ] 新增功能包含单元测试
-- [ ] 测试覆盖率 >= 80%
+- [ ] 测试覆盖率不低于 CI 地板（44%，`--cov-fail-under=44`），新增代码带测试
 - [ ] 所有测试通过（`pytest tests/ -v`）
 - [ ] 提交信息遵循 Conventional Commits
 - [ ] PR 描述清晰，包含变更说明和测试情况
