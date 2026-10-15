@@ -228,6 +228,27 @@ class ParallelSimulationEngine:
                     ),
                 }
 
+        # summary = 跨全部运行的总体摘要（标量）。**这个字段以前是空的**：
+        # aggregated["summary"] 初始化成 {} 之后从未被填充，而 BatchSimulator.compare_protocols
+        # 读的正是 summary["network_lifetime"] ⇒ 每个协议都取默认值 0，best_protocol 恒等于
+        # 协议列表的第一个（max() 在相同 key 上返回第一个元素）。
+        # 这个错值会被 examples/advanced_usage.py 与 docs/tutorial.md 直接消费，所以按「公开输出
+        # 恒错」处理：填真值，并由 tests/test_batch_simulator.py 断言 best_protocol 是较优的那个。
+        # 保持标量（不改成 dict）：compare_protocols 要把它们放进 max(..., key=...) 里比较；
+        # 分参数组合的明细仍在 by_params 里。
+        if results:
+            aggregated["summary"] = {
+                "network_lifetime": float(
+                    np.mean([r.results.get("network_lifetime", 0) for r in results])
+                ),
+                "half_network_lifetime": float(
+                    np.mean([r.results.get("half_network_lifetime", 0) for r in results])
+                ),
+                "avg_energy_consumption": float(
+                    np.mean([r.results.get("total_energy", 0) for r in results])
+                ),
+            }
+
         return aggregated
 
 

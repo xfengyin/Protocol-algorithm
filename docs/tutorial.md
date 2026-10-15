@@ -209,11 +209,13 @@ comparison = simulator.compare_protocols(
 print(f"最优协议: {comparison['summary']['best_protocol']}")
 for proto, lifetime in comparison['summary']['lifetimes'].items():
     print(f"  {proto}: {lifetime:.0f} 轮")
-# ⚠️ 已知问题（2026-10-15 登记，未修）：上面的 lifetimes 目前全是 0，best_protocol 恒等于
-# 协议列表的第一个 —— BatchSimulator.compare_protocols 读的是
-# run_parameter_sweep(...)["summary"]["network_lifetime"]，而 _aggregate_results 里
-# aggregated["summary"] 初始化成 {} 之后从未被填充（只填了 by_params）。
-# examples/compare_variants.py 不受影响，它用自己的 _compute_summary()。
+# lifetimes 是每个协议「所有运行」的 network_lifetime 均值（n_runs 次取平均），
+# best_protocol 就是 lifetimes 里最大的那个协议名。
+# 2026-10-15 修：此前这两个值都是退化值（lifetimes 全为 0、best_protocol 恒等于列表第一个），
+# 因为 _aggregate_results 里 aggregated["summary"] 初始化成 {} 之后从未被填充，
+# 而这里读的正是 summary["network_lifetime"]。现在 summary 会被真实填充，
+# 并由 tests/test_batch_simulator.py 断言「best_protocol 必须是较优的那个」。
+# 注意 examples/compare_variants.py 不走这条路径，它用自己的 _compute_summary()。
 ```
 
 ### 3.4 使用命令行
