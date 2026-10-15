@@ -252,7 +252,10 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Install dependencies
         run: |
-          .venv/bin/python -m pip install --upgrade pip
+          # setuptools 也要一起升级：runner 镜像里预装的是 79.0.1，而漏洞库里有
+          # PYSEC-2026-3447（修复版本 83.0.0）—— 这是本轮依赖审计门禁第一次真实运行
+          # 报出来的两条之一（另一条是下面 pin 的 pytest 8.1.1 / PYSEC-2026-1845）。
+          .venv/bin/python -m pip install --upgrade pip setuptools
           # torch 装 CPU 轮子：NAS 是纯 CPU 机器（无 GPU）。PyPI 上 Linux 的默认轮子会额外
           # 拉 nvidia-* CUDA 依赖（约 2.5GB）；实测 CPU 轮子 196MB、其 METADATA 里
           # Requires-Dist 的 nvidia 条数为 0（torch 2.14.1+cpu, cp311）。
@@ -260,7 +263,11 @@ jobs:
           # download.pytorch.org 从 NAS 直连实测可达（HTTP 200，3.3s，不需要代理）。
           .venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
           .venv/bin/pip install -r requirements.txt
-          .venv/bin/pip install pytest==8.1.1 pytest-cov==5.0.0 pytest-xdist==3.5.0
+          # 测试工具的 pin：8.1.1 有已知漏洞 PYSEC-2026-1845（修复版本 9.0.3，8.x 没有修复版），
+          # 所以升到 9.1.1；pytest-cov / xdist 跟着升到与 pytest 9 配套的当前版本。
+          # 这三条 pin 的用途是「让测试运行器版本可复现」，所以漏洞库出现新告警时的处置是**升版本**；
+          # 只有升版本本身不可行时，才退化为 `--ignore-vuln <ID>` + 在审计步骤里写明「为什么留 + 何时复查」。
+          .venv/bin/pip install pytest==9.1.1 pytest-cov==7.1.0 pytest-xdist==3.8.0
           .venv/bin/pip install pip-audit==2.10.1
 
       - name: Run tests with coverage
@@ -272,6 +279,10 @@ jobs:
         #   * 语义 = 「存量不许下降，新增未覆盖代码要还债」；
         #   * 容差 = 0.46 个百分点 ≈ 9 条语句（0.46% × 1930）—— 改个变量名、加两行日志不会误伤，
         #     但新增一个几十行的未测模块立刻红。
+        # 2026-10-15 复测（run 10220 / task 1482）：TOTAL 1938 行、覆盖 938 行 = 48.40%。
+        # 涨的约 4pp 里主要来自 src/config/validator.py —— trainer 新增了一条到 config 的
+        # import 边，模块级语句因此被执行（**导入即覆盖**，不等于行为被测）。所以阈值**不动**：
+        # 拿"导入带来的虚高"去抬高门槛，等于把没测的代码当成测过的。
         # 为什么不写进 pyproject.toml 的 [tool.coverage.report]：那样本地
         # `pytest --cov=src tests/test_energy.py` 单跑一个文件也会因为「全仓覆盖率不足」而红，
         # 是把 CI 判据塞进开发者日常路径；门禁放 CI 命令行，本地保持自由。
@@ -328,6 +339,14 @@ jobs:
         # 判据：pip-audit 退出码 —— 发现未登记的漏洞 -> 非零 -> job 红。
         # 存量登记方式：`--ignore-vuln <ID>`，且必须在此处写明「为什么留 + 何时复查」；
         # 当前清单为空 = 这套依赖上没有已知漏洞。
+        #
+        # 这条门禁第一次真实运行（run 10220 / task 1482）就红了，证明它真的会拦人：
+        #   pytest 8.1.1      PYSEC-2026-1845  -> 升到 9.1.1（8.x 没有修复版）
+        #   setuptools 79.0.1 PYSEC-2026-3447 -> 安装阶段改为 --upgrade setuptools
+        # 已知盲区（写在这里，免得被当成全覆盖）：带本地版本号的包会被 pip-audit 跳过 ——
+        # 实测 `torch 2.14.1+cpu` 报 "Dependency not found on PyPI and could not be audited"。
+        # 即 torch 的漏洞**不在**这条门禁的覆盖内；需要时补一次
+        # `pip-audit --disable-pip --no-deps -r requirements.txt`（按 PyPI 上的公开版本审计）。
         if: matrix.python-version == '3.11'
         run: |
           .venv/bin/pip-audit --progress-spinner=off --timeout=30

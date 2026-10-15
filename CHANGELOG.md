@@ -64,6 +64,16 @@
 - 删除 10 处 `github.server_url` 判断出来的 GitHub 分支（本仓库只跑 Gitea Actions），
   四个 job 的 `runs-on` 直写 `amd64`
 
+#### 依赖审计门禁第一次真实运行就拦下了两条漏洞
+- run 10220 / task 1482：`pytest 8.1.1` → **PYSEC-2026-1845**（修复版本 9.0.3，8.x 无修复版）、
+  `setuptools 79.0.1` → **PYSEC-2026-3447**（修复版本 83.0.0）
+- 处置是**升版本**而不是加豁免：测试工具 pin 改为 `pytest==9.1.1 pytest-cov==7.1.0
+  pytest-xdist==3.8.0`，安装阶段改为 `--upgrade pip setuptools`；
+  豁免（`--ignore-vuln`）只在升版本不可行时使用，且必须写明「为什么留 + 何时复查」
+- 这条门禁的已知盲区也写进了 workflow 注释：带本地版本号的包会被 pip-audit 跳过
+  （实测 `torch 2.14.1+cpu` 报 "Dependency not found on PyPI and could not be audited"），
+  即 torch 的漏洞不在覆盖内 —— 需要时用 `pip-audit --disable-pip --no-deps -r requirements.txt` 补审
+
 #### 依赖瘦身与 CI 成本（共享 runner 上的实际收益）
 - `requirements.txt` 删掉 **7 个零 import 的依赖**：`jupyter` / `ipykernel` / `tqdm` / `simpy` /
   `shap` / `seaborn` / `lightgbm`。判据是 `git ls-files '*.py' | xargs grep -nE '^\s*(import|from) <包名>'`
