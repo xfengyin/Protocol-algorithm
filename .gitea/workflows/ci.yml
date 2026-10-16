@@ -465,7 +465,14 @@ jobs:
   summary:
     name: CI Summary
     needs: [lint, security, test]
-    runs-on: amd64
+    # 这个 job 是**纯 shell**：只 echo 各 job 的 result 然后 exit 0/1，没有 checkout、
+    # 没有下载、不装依赖（实测约 2 秒）。但它产出的是**必需检查** `CI Pipeline / Summary`，
+    # 所以它落在哪条 runner 上、直接决定「PR 能不能合」什么时候被判定。
+    # 钉在 amd64 的代价（实测 2026-10-16）：四个 job 全绿后，Summary 仍在排队 25 分钟——
+    # NAS 只有 2 个槽位，被别的仓的重活（picoclaw 构建/集成测试）占着，而板上槽位空着。
+    # 搬到 lite：不需要 x86，上下文名与 runner 无关（仍是 CI Pipeline / CI Summary (…)），
+    # 所以 gate-integrity.py 的声明与分支保护的必需检查都不受影响。
+    runs-on: lite
     if: always()
     timeout-minutes: 5
 
