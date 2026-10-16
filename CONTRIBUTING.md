@@ -51,31 +51,37 @@
 
 ## 如何贡献代码
 
-### Fork & Pull Request 流程
+### 分支 + Pull Request 流程
 
-1. **Fork 本仓库**
+> **本项目的唯一真相源是 Gitea**：`http://192.168.31.101:3100/admin/Protocol-algorithm`。
+> GitHub 上的 `xfengyin/Protocol-algorithm` 只是 Gitea 的 **push mirror**：
+> **只读、不跑 Actions、不接受 PR 与 Issue**。所以**不要**去 GitHub fork / 开 PR / 提问 ——
+> 在那里做的任何事都不会进入本项目，既不会被 CI 检查、也不会被合并。
+> 下面的流程全部在 Gitea 上完成。
 
-   点击 GitHub 页面右上角的 "Fork" 按钮，将仓库复制到你自己的账号下。
-
-2. **克隆 Fork 的仓库**
+1. **克隆仓库**（有写权限就直接在原仓开分支，本仓是单人项目，**不需要 fork**）
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/protocol-algorithm.git
-   cd protocol-algorithm
+   git clone http://192.168.31.101:3100/admin/Protocol-algorithm.git
+   cd Protocol-algorithm
    ```
 
-3. **添加上游远程仓库**
+2. **先知道 `master` 已受分支保护：直推会被服务端拒绝**
 
-   ```bash
-   git remote add upstream https://github.com/ORIGINAL_OWNER/protocol-algorithm.git
-   git fetch upstream
+   ```text
+   remote: error: Not allowed to push to protected branch master
+    ! [remote rejected] master -> master (pre-receive hook declined)
    ```
 
-4. **创建功能分支**
+   所以**必须**走分支 + PR；合并前要求状态检查 `CI Pipeline / *` 全绿
+   （覆盖 lint / security / 两条 Test 腿 / CI Summary）。**这是被强制的规则，不是约定。**
+   确需应急绕过时，在仓库「设置 → 分支保护」临时放宽即可（日常不需要动）。
+
+3. **从 `master` 切功能分支**
 
    ```bash
-   git checkout main
-   git pull upstream main
+   git checkout master
+   git pull origin master
    git checkout -b feature/your-feature-name
    ```
 
@@ -87,7 +93,7 @@
    - `refactor/xxx` — 重构
    - `test/xxx` — 测试相关
 
-5. **进行开发并提交**
+4. **进行开发并提交**
 
    ```bash
    # 编辑代码...
@@ -104,25 +110,35 @@
    git commit -m "feat(leach): 添加 LEACH-F 能量感知变体"
    ```
 
-6. **推送到远程**
+5. **推送到远程**
 
    ```bash
    git push origin feature/your-feature-name
    ```
 
-7. **创建 Pull Request**
+6. **创建 Pull Request**
 
-   - 前往 GitHub，点击 "Compare & pull request"
-   - 填写 PR 模板，描述变更内容、测试情况和关联 Issue
-   - 等待代码审查
+   - 在 Gitea 上打开 `http://192.168.31.101:3100/admin/Protocol-algorithm/pulls`，
+     点 **New Pull Request**，base 选 `master`、compare 选你的分支
+     （刚推完分支时，命令行回显里也会直接给出创建链接）
+   - 描述变更内容与测试情况
+   - **等 CI 全绿再合并** —— CI 红时合并会被服务端拒绝：
+     `{"message":"Not all required status checks successful"}`（HTTP 405，实测）
+   - 合并后删除该分支
 
-8. **根据审查意见修改**
+7. **根据审查意见修改**
 
    - 在本地修改后，追加提交到同一分支
    - 推送后 PR 会自动更新
    - 重复审查-修改流程直到合入
 
 ### 分支策略
+
+> **现状（2026-10-16 实测）：本仓只有 `master` 一个分支**，它就是默认分支、也是受保护分支，
+> 日常改动从 `master` 切分支、PR 回 `master`。
+> 下面画的是**目标策略**：`main` / `develop` **尚未创建**。
+> `.gitea/workflows/ci.yml` 的触发分支已经把 `master`、`main`、`develop` 三者都列上，
+> 所以将来真按目标策略建分支时，**不需要再改 workflow**。
 
 ```
 main                ← 稳定发布分支
@@ -731,7 +747,7 @@ python -m timeit -n 100 "from src.leach.classic import ClassicLEACH; ..."
 
 ## 如何报告 Bug
 
-使用 GitHub Issues 报告 Bug，请遵循以下模板：
+使用 Gitea Issues 报告 Bug（`http://192.168.31.101:3100/admin/Protocol-algorithm/issues`），请遵循以下模板：
 
 ### Bug 报告模板
 
@@ -913,7 +929,7 @@ protocol-algorithm/
 1. **更新版本号**（`pyproject.toml`）
 2. **更新 CHANGELOG.md**
 3. **创建 Git Tag**
-4. **发布 GitHub Release**
+4. **发布 Gitea Release**（`http://192.168.31.101:3100/admin/Protocol-algorithm/releases`）
 
 ```bash
 # 打标签
@@ -925,9 +941,10 @@ git push origin v1.1.0
 
 ## 联系方式
 
-- **GitHub Issues**: [报告 Bug / 提出功能](https://github.com/xfengyin/protocol-algorithm/issues)
-- **讨论区**: [GitHub Discussions](https://github.com/xfengyin/protocol-algorithm/discussions)
-- **邮件**: [项目维护者邮箱]
+- **Gitea Issues**（唯一有效的跟踪入口）:
+  [报告 Bug / 提出功能](http://192.168.31.101:3100/admin/Protocol-algorithm/issues)
+  —— GitHub 侧是只读 mirror，**不开 Issue**，写在那里没人看得到
+- **Pull Request**: `http://192.168.31.101:3100/admin/Protocol-algorithm/pulls`
 
 ---
 
