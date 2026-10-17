@@ -36,6 +36,14 @@ env:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+# 为什么要写绝对 URL（2026-10-17）：
+#   本机 runner 拉 action 时失败率约 25%，而每个 job 拉几次就乘几次：
+#   实测 Protocol 五个 job 真跑率 32%/5%/20%/13%，相乘约 0.02% —— 靠重跑撞窗口不可能收敛。
+#   gitea.com 是 Gitea 官方维护的 action 镜像，实测本仓用到的 3 个 action ref 均为 3/3 可达
+#   （同时刻 github 直连只有 1/3）。因此这里显式写镜像地址。
+#   要改回 `uses: actions/xxx@vN` 之前，请先确认 runner 到 github 的路径已经稳定 ——
+#   否则门禁会退回"五个 job 相乘 0.02%"的状态。
+
 jobs:
   # -------------------------------------------
   # 代码质量检查
@@ -47,10 +55,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: https://gitea.com/actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: https://gitea.com/actions/setup-python@v5
         with:
           python-version: "3.11"
           # 不再用 setup-python 自带的 pip 缓存：它在 post 步骤里把 ~/.cache/pip 全部 zstd 压缩一遍
@@ -131,10 +139,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: https://gitea.com/actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: https://gitea.com/actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -203,7 +211,7 @@ jobs:
       - name: Upload security reports
         # @v3 是 Gitea 唯一可用的 artifact API（@v4+ 会被 action 自判 GHES 后拒绝执行）
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: https://gitea.com/actions/upload-artifact@v3
         with:
           name: security-reports
           path: bandit-report.txt
@@ -242,10 +250,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: https://gitea.com/actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: https://gitea.com/actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           # 同 lint job：pip 缓存走 runner 挂载的宿主目录，不用 setup-python 的 cache（它太慢）
@@ -443,7 +451,7 @@ jobs:
 
       - name: Upload coverage report
         if: (matrix.python-version == '3.11') && always()
-        uses: actions/upload-artifact@v3
+        uses: https://gitea.com/actions/upload-artifact@v3
         with:
           name: coverage-report-py${{ matrix.python-version }}
           path: |
@@ -453,7 +461,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: https://gitea.com/actions/upload-artifact@v3
         with:
           name: test-results-py${{ matrix.python-version }}
           path: junit-report.xml
