@@ -8,10 +8,15 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from ..config.validator import SUPPORTED_MODEL_TYPES
 from .pytorch_selector import PyTorchClusterSelector
 from .selector import AIClusterSelector
 from .sklearn_selector import SklearnClusterSelector
+
+# AITrainer 认可的模型类型。原来它定义在 src/config/validator.py 里，但那个模块
+# 是一套**没人使用、且与 config/*.yaml 的真实 schema 不兼容**的配置校验层
+# （它认 energy/visualization，真实配置是 energy_model/protocol/leach*/output），
+# 已经被整块删除 —— 于是这个常量跟着它唯一的真实使用者（本文件）走。
+SUPPORTED_MODEL_TYPES: Tuple[str, ...] = ("sklearn", "pytorch")
 
 
 class AITrainer:
@@ -30,7 +35,7 @@ class AITrainer:
         # SklearnClusterSelector，第二条就成了 incompatible assignment。
         self.selector: AIClusterSelector
 
-        # 合法值来自 schema 层（唯一真相源），不在本文件再抄一份
+        # 合法值只有上面一处定义，这里直接查它，不再别处抄一份
         if model_type not in SUPPORTED_MODEL_TYPES:
             raise ValueError(
                 f"Unknown model type: {model_type}. "

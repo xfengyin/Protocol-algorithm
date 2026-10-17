@@ -80,7 +80,7 @@ jobs:
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/pip install black==24.3.0 isort==5.13.2 flake8==7.0.0 mypy==1.9.0
           # 只有类型存根，不是运行时依赖：本 job 不装 requirements.txt，
-          # 缺 types-PyYAML 时 mypy 会报 src/config/validator.py:10 import-untyped。
+          # 缺 types-PyYAML 时 mypy 会报 cli.py:7 import-untyped（`import yaml` 在那里）。
           .venv/bin/pip install types-PyYAML==6.0.12.20240311
 
       # 覆盖范围：src/ tests/ examples/ + 两个入口脚本 + 包根。此前只查 src/ 与 tests/，
@@ -302,8 +302,9 @@ jobs:
         #   （+2.4pp：这一轮新增的 tests/test_batch_simulator.py 开始真正执行
         #    _aggregate_results 的聚合分支 —— 也就是说涨的这部分是**真覆盖**，不是导入即覆盖）。
         #   阈值仍保持 44：地板是棘轮，抬阈值要单独一轮，不在本次改动范围。
-        # 涨的约 4pp 里主要来自 src/config/validator.py —— trainer 新增了一条到 config 的
-        # import 边，模块级语句因此被执行（**导入即覆盖**，不等于行为被测）。所以阈值**不动**：
+        # 涨的约 4pp 里有相当一部分是「导入即覆盖」（模块被 import 到，模块级语句被执行，
+        # 不等于行为被测；当时点名的 src/config/validator.py 已于 2026-10-17 整块删除）。
+        # 所以阈值**不动**：
         # 拿"导入带来的虚高"去抬高门槛，等于把没测的代码当成测过的。
         # 为什么不写进 pyproject.toml 的 [tool.coverage.report]：那样本地
         # `pytest --cov=src tests/test_energy.py` 单跑一个文件也会因为「全仓覆盖率不足」而红，

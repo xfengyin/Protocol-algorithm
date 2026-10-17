@@ -1419,21 +1419,28 @@ comparator.generate_comparison_report(
 
 ---
 
-## 9. 配置管理 (config)
+## 9. 配置管理
 
-### 9.1 ConfigValidator
+### 9.1 load_config
 
-配置校验器。
+配置文件由 `cli.py::load_config` 读入，返回一个普通 `dict`：
 
 ```python
-from src.config.validator import ConfigValidator
+from cli import load_config
+
+config = load_config("config/config.yaml")   # -> dict
 ```
 
-#### 功能
+消费方是 `cli.main`：`config["network"]` 直接构造 `Network`，
+`config["energy_model"]` 展开成 `FirstOrderRadioModel(**...)`，
+`config["simulation"]["rounds"]` 与 `config["protocol"]` 传给 `simulate_network`。
 
-- 验证 YAML 配置文件的格式和值范围
-- 确保能量参数、网络参数、协议参数的合理性
-- 提供默认值回退
+**现状（如实说明）**：这一步**不做 schema 校验** —— 读进来就是 YAML 的字面内容，
+键名写错要到使用时才会以 `KeyError` 暴露。仓库里曾经有一份
+`src/config/validator.py`（`FullConfig` 等），但它从未被任何入口调用，
+且它认的键（`energy` / `visualization`）与**真实配置**（`energy_model` /
+`protocol` / `leach*` / `output`）并不兼容，是一份漂移了的第二真相源，
+已于 2026-10-17 整块删除。给配置加校验是一件独立的事，不要用"再写一份 schema"的方式做。
 
 #### 示例配置
 

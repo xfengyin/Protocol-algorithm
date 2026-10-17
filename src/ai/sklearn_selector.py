@@ -18,7 +18,7 @@ class SklearnClusterSelector(AIClusterSelector):
 
     def __init__(
         self,
-        model_type: str = "rf",
+        estimator: str = "rf",
         model_path: Optional[str] = None,
         n_estimators: int = 100,
         **kwargs,
@@ -27,31 +27,34 @@ class SklearnClusterSelector(AIClusterSelector):
         初始化
 
         Args:
-            model_type: 模型类型 ('rf' 或 'gb')
+            estimator: 估计器种类 ('rf' 随机森林 或 'gb' 梯度提升)。
+                **不叫 `model_type`** —— 那是 `AITrainer` 的说法，它指的是
+                `sklearn` / `pytorch`（框架）。同一个名字在两个模块里指两件事，
+                是「同名不同物」，已在此统一：这里一律叫 `estimator`。
             model_path: 模型保存路径
             n_estimators: 决策树数量
             **kwargs: sklearn 参数
         """
         super().__init__(model_path)
 
-        self.model_type = model_type
+        self.estimator = estimator
         self.n_estimators = n_estimators
         self.scaler = StandardScaler()
 
         # 创建模型
-        if model_type == "rf":
+        if estimator == "rf":
             self.model = RandomForestClassifier(
                 n_estimators=n_estimators,
                 random_state=42,
                 class_weight="balanced",  # 处理不平衡
                 **kwargs,
             )
-        elif model_type == "gb":
+        elif estimator == "gb":
             self.model = GradientBoostingClassifier(
                 n_estimators=n_estimators, random_state=42, **kwargs
             )
         else:
-            raise ValueError(f"Unknown model type: {model_type}")
+            raise ValueError(f"Unknown estimator: {estimator}")
 
     def predict(self, features: np.ndarray) -> np.ndarray:
         """
@@ -109,7 +112,7 @@ class SklearnClusterSelector(AIClusterSelector):
             "model": self.model,
             "scaler": self.scaler,
             "feature_names": self.feature_names,
-            "model_type": self.model_type,
+            "estimator": self.estimator,
             "n_estimators": self.n_estimators,
         }
 
@@ -132,5 +135,8 @@ class SklearnClusterSelector(AIClusterSelector):
         self.model = model_data["model"]
         self.scaler = model_data["scaler"]
         self.feature_names = model_data["feature_names"]
-        self.model_type = model_data["model_type"]
+        # 兼容 2026-10-17 之前保存的模型文件：那时这个键叫 "model_type"。
+        self.estimator = model_data.get("estimator", model_data.get("model_type"))
+        if self.estimator is None:
+            raise KeyError("模型文件里既没有 estimator 也没有 model_type")
         self.n_estimators = model_data["n_estimators"]

@@ -267,7 +267,7 @@ animator.animate(rounds=100)                  # rounds=播放多少轮（不是 
 | 覆盖率 | `--cov-fail-under=44`：存量实测 1930 行覆盖 858 行 = 44.46%，阈值取 floor 值 | 单跑一个测试文件 + 阈值 90，断言因「覆盖率未达标」而失败 |
 
 覆盖率是**棘轮**（ratchet）：44% 是当前存量的地板，不是达标线 —— 新增未测代码会让 job 变红，
-要加功能就得同时加测试。`data/`、`visualization/`、`src/config/` 目前几乎无测试覆盖，
+要加功能就得同时加测试。`data/`、`visualization/` 目前几乎无测试覆盖，
 抬高阈值需要先补测试（见 CONTRIBUTING 的「覆盖率要求」）。
 
 ## License

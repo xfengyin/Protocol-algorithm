@@ -136,7 +136,7 @@ def train_ai_model(X: np.ndarray, y: np.ndarray) -> AITrainer:
     print("=" * 60)
 
     # 创建训练器 (使用随机森林)
-    trainer = AITrainer(model_type="sklearn", model_type_rf="rf", n_estimators=100)
+    trainer = AITrainer(model_type="sklearn", estimator="rf", n_estimators=100)
 
     # 划分训练集和测试集
     X_train, X_test, y_train, y_test = trainer.prepare_data(X, y, test_size=0.2, random_state=42)
