@@ -29,6 +29,7 @@
    条件是：`**kwargs` 的参数名出现在某个 `Target(**kwargs)` 调用里；
 4. 一个字面关键字必须被 `Cls` 自己**或**某个转发目标接受，否则报错。
 """
+
 from __future__ import annotations
 
 import ast
@@ -64,7 +65,7 @@ def class_inits(tree: ast.Module) -> dict[str, ast.FunctionDef]:
 
 def params(fn: ast.FunctionDef) -> tuple[list[str], str | None]:
     """(具名形参, **kwargs 的名字)。"""
-    named = [a.arg for a in fn.args.args[1:]]           # 去掉 self
+    named = [a.arg for a in fn.args.args[1:]]  # 去掉 self
     named += [a.arg for a in fn.args.kwonlyargs]
     return named, (fn.args.kwarg.arg if fn.args.kwarg else None)
 
@@ -126,7 +127,7 @@ def call_sites():
 def violations(inits) -> list[str]:
     bad = []
     for path, lineno, cls, kws in call_sites():
-        if cls not in inits:            # 不是本仓定义的类，无法判定，跳过
+        if cls not in inits:  # 不是本仓定义的类，无法判定，跳过
             continue
         ok_keys, tolerant = accepted_keywords(cls, inits)
         if not tolerant:
@@ -137,8 +138,7 @@ def violations(inits) -> list[str]:
             rel = path.relative_to(ROOT)
             bad.append(
                 "%s:%d  %s(%s) —— %s 既不在 %s 的形参里，也不在它转发目标的形参里"
-                % (rel, lineno, cls, ", ".join("%s=..." % k for k in kws),
-                   ", ".join(unknown), cls)
+                % (rel, lineno, cls, ", ".join("%s=..." % k for k in kws), ", ".join(unknown), cls)
             )
     return bad
 
@@ -155,7 +155,7 @@ def test_negative_control_catches_the_2026_10_17_bug():
     """把当年的错法构造出来，判据必须报出来 —— 否则这测试只是装饰。"""
     inits = build_index()
     # 当年 examples/run_ai_leach.py:139 的写法
-    fake = ("AITrainer(model_type=\"sklearn\", model_type_rf=\"rf\", n_estimators=100)")
+    fake = 'AITrainer(model_type="sklearn", model_type_rf="rf", n_estimators=100)'
     node = ast.parse(fake).body[0].value
     assert isinstance(node, ast.Call)
     cls = "AITrainer"
@@ -164,9 +164,11 @@ def test_negative_control_catches_the_2026_10_17_bug():
     assert tolerant, "AITrainer 应当有 **kwargs"
     kws = [k.arg for k in node.keywords if k.arg]
     unknown = [k for k in kws if k not in ok_keys]
-    assert unknown == ["model_type_rf"], (
-        "负对照失效：期望恰好报出 model_type_rf，实际 %r（接受的关键字=%s）"
-        % (unknown, sorted(ok_keys))
+    assert unknown == [
+        "model_type_rf"
+    ], "负对照失效：期望恰好报出 model_type_rf，实际 %r（接受的关键字=%s）" % (
+        unknown,
+        sorted(ok_keys),
     )
 
 

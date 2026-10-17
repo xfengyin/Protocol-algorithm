@@ -8,15 +8,15 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from .pytorch_selector import PyTorchClusterSelector
+from .selector import AIClusterSelector
+from .sklearn_selector import SklearnClusterSelector
+
 # AITrainer 认可的模型类型。原来它定义在 src/config/validator.py 里，但那个模块
 # 是一套**没人使用、且与 config/*.yaml 的真实 schema 不兼容**的配置校验层
 # （它认 energy/visualization，真实配置是 energy_model/protocol/leach*/output），
 # 已经被整块删除 —— 于是这个常量跟着它唯一的真实使用者（本文件）走。
 SUPPORTED_MODEL_TYPES: Tuple[str, ...] = ("sklearn", "pytorch")
-
-from .pytorch_selector import PyTorchClusterSelector
-from .selector import AIClusterSelector
-from .sklearn_selector import SklearnClusterSelector
 
 
 class AITrainer:
