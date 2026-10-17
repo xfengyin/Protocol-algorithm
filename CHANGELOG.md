@@ -5,6 +5,15 @@
 （三轮未发布改动：2026-10-14 的代码修复轮 + 2026-10-15 的门禁加固轮 + 2026-10-17 的单一真相源轮）
 
 ### Removed (2026-10-17)
+
+- **删除 `src/visualization/animator.py`（478 行）**。`OptimizedNetworkAnimator` /
+  `AnimatorConfig` 从任何入口都不可达：`cli.py`、`main.py`、5 个 examples、8 个测试文件
+  里都没有调用（只有 `src/visualization/__init__.py` 把它 re-export 成 `NetworkAnimator`，
+  而那个别名同样无人使用）。同时它是**导入热路径上的死代码** ——
+  `from src.visualization.metrics_plots import MetricsPlotter` 会先执行父包 `__init__.py`，
+  于是任何只想画指标图的代码都会连带 import 478 行动画代码和 `matplotlib.animation`。
+  README 里那一节还把它写成了 `Animator`（实际类名是 `OptimizedNetworkAnimator`），
+  长期没人发现，正好说明这段没有真实使用者。需要时从 git 历史取回。
 - **整块删除 `src/config/validator.py`（351 行）**。它是一份**没人调用、且与真实配置
   schema 不兼容**的校验层：认 `energy` / `visualization`，而 `config/*.yaml` 用的是
   `energy_model` / `protocol` / `leach*` / `output`；`validate_config_file` 只被重新导出、

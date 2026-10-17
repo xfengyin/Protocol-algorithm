@@ -61,7 +61,6 @@ protocol-algorithm/
 │   │   └── engine.py            # 并行仿真引擎
 │   ├── visualization/           # 可视化
 │   │   ├── metrics_plots.py     # 指标图表
-│   │   ├── animator.py          # 动画
 │   │   └── comparison.py        # 对比图表
 │   ├── data/                    # 数据处理
 │   │   ├── generator.py         # 数据生成
