@@ -6,6 +6,13 @@
 
 ### Removed (2026-10-17)
 
+- **删除 `src/data/` 整包（319 行：`__init__.py` + `generator.py` + `sampler.py`）**。
+  `DataGenerator` / `ImbalancedSampler` 在全仓**零导入点** —— `from src.data` 一条都没有，
+  `cli.py`、`main.py`、5 个 examples、8 个 tests 全都不引用，也没有动态导入。
+  同时它是 0% 测试覆盖（`CONTRIBUTING.md` 自己的覆盖率表就写着「当前 0%」）。
+  真正在用的训练数据生成逻辑是 `examples/run_ai_leach.py::generate_training_data`，
+  文档已改为指向它。需要时从 git 历史取回。
+
 - **删除 `src/visualization/animator.py`（478 行）**。`OptimizedNetworkAnimator` /
   `AnimatorConfig` 从任何入口都不可达：`cli.py`、`main.py`、5 个 examples、8 个测试文件
   里都没有调用（只有 `src/visualization/__init__.py` 把它 re-export 成 `NetworkAnimator`，
