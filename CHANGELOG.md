@@ -2,7 +2,20 @@
 
 ## [Unreleased]
 
-（两轮未发布改动：2026-10-14 的代码修复轮 + 2026-10-15 的门禁加固轮）
+（三轮未发布改动：2026-10-14 的代码修复轮 + 2026-10-15 的门禁加固轮 + 2026-10-17 的单一真相源轮）
+
+### Removed (2026-10-17)
+- **整块删除 `src/config/validator.py`（351 行）**。它是一份**没人调用、且与真实配置
+  schema 不兼容**的校验层：认 `energy` / `visualization`，而 `config/*.yaml` 用的是
+  `energy_model` / `protocol` / `leach*` / `output`；`validate_config_file` 只被重新导出、
+  从无调用方；`FullConfig` 从未被任何入口使用。
+  它同时制造了两处同名不同物：`SimulationConfig`（真的那个在 `src/simulation/engine.py`）
+  与 `model_type`（这里指 `sklearn`/`pytorch`，`src/ai/sklearn_selector.py` 里指 `rf`/`gb`）。
+  唯一真实被使用的是 `SUPPORTED_MODEL_TYPES`，已随它唯一的使用者移到 `src/ai/trainer.py`。
+- 一并修正的**文档与现实不符**：`CONTRIBUTING.md` 与 `docs/api_reference.md` 都写了
+  `from src.config.validator import ConfigValidator` —— 这个类**从未存在过**；
+  `docs/api_reference.md` §9 改为如实描述真实入口 `cli.load_config`
+  （含「不做 schema 校验」这一现状）。
 
 ### Fixed (2026-10-14)
 - `models/network.py`: 删除 `self._spatial_index.cKDTree__repr__(positions)`

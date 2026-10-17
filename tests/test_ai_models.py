@@ -11,7 +11,7 @@ class TestSklearnClusterSelector:
 
     @pytest.fixture
     def selector(self):
-        return SklearnClusterSelector(model_type="rf", n_estimators=10)
+        return SklearnClusterSelector(estimator="rf", n_estimators=10)
 
     @pytest.fixture
     def sample_data(self):

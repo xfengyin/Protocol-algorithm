@@ -394,7 +394,6 @@ import matplotlib.pyplot as plt
 # 3. 项目内部库
 from src.energy.radio_model import FirstOrderRadioModel
 from src.models.node import Node
-from src.config.validator import ConfigValidator
 ```
 
 每个 `import` 语句只导入一个模块。
@@ -575,11 +574,14 @@ CI 强制的只有一条：**整体覆盖率不得低于 44%**（`--cov-fail-und
 存量不许下降，新增未测代码就让 CI 红，加功能要同时加测试。
 
 > 2026-10-15 复测（run 10220）：TOTAL 1938 条语句、覆盖 938 条 = **48.40%**。
-> 但阈值**没有跟着上调**：涨的约 4 个百分点主要来自 `src/config/validator.py`
-> 因为新增了一条 import 边而在测试收集阶段被执行（**导入即覆盖**，不等于行为被测）。
-> 拿导入带来的虚高去抬高门槛，等于把没测的代码当成测过的。
+> 但阈值**没有跟着上调**：当轮涨的约 4 个百分点里有相当一部分来自「导入即覆盖」
+> （某个模块只是被 import 到，模块级语句被执行，不等于行为被测）。
+> 拿这种虚高去抬高门槛，等于把没测的代码当成测过的。
+>
+> 2026-10-17 补充：当时被点名的那份 `src/config/validator.py` 已整块删除 ——
+> 它是一套没人调用、且与 `config/*.yaml` 真实 schema 不兼容的配置校验层。
 
-下面的分模块目标是**期望值，目前尚未达到**（整体 48.40%，但 3 个模块仍是 0%），改动的模块请尽量往上拉：
+下面的分模块目标是**期望值，目前尚未达到**（整体 48.40%，但 2 个模块仍是 0%），改动的模块请尽量往上拉：
 
 | 模块类型 | 目标覆盖率 | 当前状况 |
 |----------|-----------|----------|
@@ -588,7 +590,6 @@ CI 强制的只有一条：**整体覆盖率不得低于 44%**（`--cov-fail-und
 | AI 优化模块 | >= 80% | `src/ai/` 有测试（选择器与训练器） |
 | 可视化模块 | >= 70% | `src/visualization/` **当前 0%** —— 画图代码没有测试 |
 | 数据模块 | >= 80% | `src/data/` **当前 0%** —— 生成器与采样器没有测试 |
-| 配置校验 | >= 80% | `src/config/validator.py` **当前 0%**，且没有任何入口调用它（`cli.py` 用的是自己的 `load_config`） |
 
 （说明：仓库里没有 `src/utils/` 目录，旧表格里那一行已删。）
 
@@ -920,8 +921,6 @@ protocol-algorithm/
 │   │   └── engine.py
 │   ├── visualization/       # 可视化
 │   │   └── metrics_plots.py
-│   ├── config/              # 配置管理
-│   │   └── validator.py
 │   └── data/                # 数据生成
 │       └── generator.py
 ├── tests/                    # 测试代码

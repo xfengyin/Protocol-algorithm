@@ -66,8 +66,6 @@ protocol-algorithm/
 │   ├── data/                    # 数据处理
 │   │   ├── generator.py         # 数据生成
 │   │   └── sampler.py           # 采样器
-│   └── config/                  # 配置管理
-│       └── validator.py         # 配置校验
 ├── config/                      # 配置文件
 │   ├── config.yaml              # 默认配置
 │   └── leach_ai.yaml            # AI 配置
