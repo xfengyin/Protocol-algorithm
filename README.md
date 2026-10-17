@@ -238,20 +238,6 @@ plotter.plot_network_lifetime(results)
 
 每轮簇头数量分布和簇大小分布的统计图表。
 
-### 动态动画
-
-使用 `Animator` 类生成网络拓扑变化的动画：
-
-```python
-from src.visualization.animator import AnimatorConfig, OptimizedNetworkAnimator
-
-animator = OptimizedNetworkAnimator(
-    network,                                  # 必填：要动画化的 Network
-    config=AnimatorConfig(interval=100),      # 可选：帧间隔等动画参数
-)
-animator.animate(rounds=100)                  # rounds=播放多少轮（不是 num_frames）
-```
-
 ## 质量门禁（CI）
 
 `.gitea/workflows/ci.yml` 里每个检查都是硬门禁：**能红也能绿**。判据与负对照（证明这个检查
