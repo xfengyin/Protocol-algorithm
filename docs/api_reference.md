@@ -10,10 +10,9 @@
 4. [能量模型 (energy)](#4-能量模型-energy)
 5. [AI 簇头选择 (ai)](#5-ai-簇头选择-ai)
 6. [仿真引擎 (simulation)](#6-仿真引擎-simulation)
-7. [数据处理 (data)](#7-数据处理-data)
-8. [可视化 (visualization)](#8-可视化-visualization)
-9. [配置管理 (config)](#9-配置管理-config)
-10. [扩展接口](#10-扩展接口)
+7. [可视化 (visualization)](#7-可视化-visualization)
+8. [配置管理 (config)](#8-配置管理-config)
+9. [扩展接口](#9-扩展接口)
 
 ---
 
@@ -45,7 +44,6 @@
 | `ai` | `AdvancedFeatureExtractor` | 高级特征提取器 | `src/ai/feature_engineering.py` |
 | `simulation` | `ParallelSimulationEngine` | 并行仿真引擎 | `src/simulation/engine.py` |
 | `simulation` | `BatchSimulator` | 批量仿真器 | `src/simulation/engine.py` |
-| `data` | `DataGenerator` | 训练数据生成器 | `src/data/generator.py` |
 | `visualization` | `MetricsPlotter` | 指标图表绘制器 | `src/visualization/metrics_plots.py` |
 | `visualization` | `ComparisonPlotter` | 对比图表绘制器 | `src/visualization/comparison.py` |
 
@@ -970,12 +968,8 @@ AITrainer(model_type: str = "sklearn", **kwargs)
 
 ```python
 from src.ai.trainer import AITrainer
-from src.data.generator import DataGenerator
 
-# 生成数据
-gen = DataGenerator(n_nodes=100)
-X, y = gen.generate_balanced_dataset(n_rounds=500)
-
+# X, y 由 LEACH 仿真产生（完整流程见 examples/run_ai_leach.py）
 # 训练
 trainer = AITrainer(model_type='sklearn', n_estimators=100)
 result = trainer.train(X, y)
@@ -1233,83 +1227,9 @@ BatchSimulator(engine: Optional[ParallelSimulationEngine] = None)
 
 ---
 
-## 7. 数据处理 (data)
+## 7. 可视化 (visualization)
 
-### 7.1 DataGenerator
-
-训练数据生成器。
-
-```python
-from src.data.generator import DataGenerator
-```
-
-#### 构造函数
-
-```python
-DataGenerator(
-    n_nodes: int = 100,                        # 节点数
-    area: Tuple[float, float, float, float] = (0, 100, 0, 100),  # 区域
-    base_station_pos: Tuple[float, float] = (50, 50),            # 基站位置
-    initial_energy: float = 0.5                # 初始能量
-)
-```
-
-#### 方法
-
-| 方法 | 参数 | 返回值 | 说明 |
-|------|------|--------|------|
-| `generate_training_data(n_rounds, protocol_name, seed)` | 见签名 | `pd.DataFrame` | 生成训练数据 DataFrame |
-| `generate_balanced_dataset(n_rounds, positive_ratio, seed)` | 见签名 | `Tuple[np.ndarray, np.ndarray]` | 生成平衡数据集 (X, y) |
-| `save_dataset(X, y, path, feature_names)` | 见签名 | `None` | 保存数据集为 CSV |
-
-#### generate_training_data 返回 DataFrame 列
-
-| 列名 | 类型 | 说明 |
-|------|------|------|
-| `round` | `int` | 轮次 |
-| `node_id` | `int` | 节点 ID |
-| `x` | `float` | X 坐标 |
-| `y` | `float` | Y 坐标 |
-| `energy` | `float` | 当前能量 |
-| `energy_ratio` | `float` | 能量比例 |
-| `dist_to_bs` | `float` | 到基站距离 |
-| `is_alive` | `bool` | 是否存活 |
-| `is_cluster_head` | `bool` | 是否为簇头 |
-| `round_dead` | `Optional[int]` | 死亡轮次 |
-| `n_neighbors` | `int` | 邻居数量 |
-
-#### generate_balanced_dataset 参数
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `n_rounds` | `int` | `500` | 模拟轮数 |
-| `positive_ratio` | `float` | `0.1` | 正例（簇头）比例 |
-| `seed` | `Optional[int]` | `None` | 随机种子 |
-
-#### 示例
-
-```python
-gen = DataGenerator(n_nodes=100)
-
-# 生成原始数据
-df = gen.generate_training_data(n_rounds=500, seed=42)
-print(df.head())
-
-# 生成平衡数据集
-X, y = gen.generate_balanced_dataset(n_rounds=500, positive_ratio=0.1)
-print(f"X shape: {X.shape}, y shape: {y.shape}")
-print(f"正例比例: {y.mean():.3f}")
-
-# 保存
-gen.save_dataset(X, y, 'data/training.csv',
-                 feature_names=['x', 'y', 'energy', 'energy_ratio', 'dist_to_bs', 'n_neighbors'])
-```
-
----
-
-## 8. 可视化 (visualization)
-
-### 8.1 MetricsPlotter
+### 7.1 MetricsPlotter
 
 指标图表绘制器。
 
@@ -1364,7 +1284,7 @@ plotter.plot_all_metrics(results, output_dir='results/plots', show=False)
 
 ---
 
-### 8.2 ComparisonPlotter
+### 7.2 ComparisonPlotter
 
 协议对比图表绘制器。
 
@@ -1419,9 +1339,9 @@ comparator.generate_comparison_report(
 
 ---
 
-## 9. 配置管理
+## 8. 配置管理
 
-### 9.1 load_config
+### 8.1 load_config
 
 配置文件由 `cli.py::load_config` 读入，返回一个普通 `dict`：
 
@@ -1477,9 +1397,9 @@ output:
 
 ---
 
-## 10. 扩展接口
+## 9. 扩展接口
 
-### 10.1 自定义协议
+### 9.1 自定义协议
 
 继承 `LEACHProtocol` 并注册：
 
@@ -1505,7 +1425,7 @@ class MyProtocol(LEACHProtocol):
 LEACHRegistry.register('my_protocol', MyProtocol)
 ```
 
-### 10.2 自定义能量模型
+### 9.2 自定义能量模型
 
 实现 `EnergyModel` 接口并注册：
 
@@ -1531,7 +1451,7 @@ class CustomModel(EnergyModel):
 EnergyModelFactory.register('custom', CustomModel)
 ```
 
-### 10.3 自定义 AI 选择器
+### 9.3 自定义 AI 选择器
 
 继承 `AIClusterSelector`：
 

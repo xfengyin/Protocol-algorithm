@@ -62,7 +62,6 @@ protocol-algorithm/
 │   ├── visualization/           # 可视化
 │   │   ├── metrics_plots.py     # 指标图表
 │   │   └── comparison.py        # 对比图表
-│   ├── data/                    # 数据处理
 │   │   ├── generator.py         # 数据生成
 │   │   └── sampler.py           # 采样器
 ├── config/                      # 配置文件
@@ -468,17 +467,16 @@ network = Network(
 
 ```python
 from src.models.network import Network
-from src.data.generator import DataGenerator
 from src.ai.trainer import AITrainer
 from src.ai.selector import SklearnClusterSelector
+from examples.run_ai_leach import generate_training_data
 
-# 1. 生成训练数据
-generator = DataGenerator(n_nodes=100)
-X_train, y_train = generator.generate_balanced_dataset(n_rounds=500)
-X_test, y_test = generator.generate_test_dataset(n_rounds=100)
+# 1. 生成训练数据（用传统 LEACH 仿真打标签 —— 真实实现就在这个函数里）
+X, y = generate_training_data(n_nodes=100, training_rounds=500, seed=42)
 
-# 2. 训练 AI 模型
+# 2. 划分并训练
 trainer = AITrainer(model_type='sklearn', n_estimators=100)
+X_train, X_test, y_train, y_test = trainer.prepare_data(X, y, test_size=0.2, random_state=42)
 trainer.train(X_train, y_train)
 
 # 3. 评估模型
@@ -663,11 +661,11 @@ LEACHRegistry.register('my_protocol', MyProtocol)
 
 **Q: AI 模型训练数据从哪里来？**
 
-A: 使用 `DataGenerator` 通过传统 LEACH 仿真生成标注数据：
+A: 用传统 LEACH 仿真跑出「这一轮该选谁当簇头」的标注，再拿去训练。
+真实实现是 `examples/run_ai_leach.py::generate_training_data`：
 ```python
-from src.data.generator import DataGenerator
-gen = DataGenerator(n_nodes=100)
-X, y = gen.generate_balanced_dataset(n_rounds=500)
+from examples.run_ai_leach import generate_training_data
+X, y = generate_training_data(n_nodes=100, training_rounds=500, seed=42)
 ```
 
 **Q: sklearn 和 PyTorch 该选哪个？**
