@@ -161,8 +161,13 @@ class AdvancedFeatureExtractor:
         """
         return np.array([self.extract_features(node) for node in nodes])
 
-    def get_feature_names(self) -> List[str]:
-        """获取特征名称列表"""
+    @staticmethod
+    def get_feature_names() -> List[str]:
+        """获取特征名称列表。
+
+        做成静态方法：按宽度取名字的调用方（AIClusterSelector.feature_names_for_width）
+        手里没有 Network，不该为了拿一份名单去造一个提取器实例。
+        """
         return [
             "x",
             "y",

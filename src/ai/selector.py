@@ -12,6 +12,46 @@ from ..models.cluster_head import ClusterHead
 from ..models.network import Network
 from ..models.node import Node
 
+# 窄特征布局：Node.get_features 的顺序，逐位对应。examples/ 与 README 的入门路径依赖它。
+NARROW_FEATURE_NAMES: tuple[str, ...] = (
+    "x",
+    "y",
+    "energy",
+    "energy_ratio",
+    "dist_to_bs",
+    "transmissions",
+    "receptions",
+)
+
+
+def feature_names_for_width(width: int) -> List[str]:
+    """按模型实际输入宽度给出特征名。
+
+    名字必须与模型实际吃进去的列一一对应，否则 get_feature_importance 会把重要性
+    贴到错误的名字上（静默错位，不报错）。宽度对不上任何已知布局时返回
+    feature_00.. 占位名：宁可名字难看，不可名字说谎。
+
+    Args:
+        width: 模型输入的特征维度
+
+    Returns:
+        长度恰为 width 的特征名列表
+    """
+    if width == len(NARROW_FEATURE_NAMES):
+        return list(NARROW_FEATURE_NAMES)
+
+    try:
+        from .feature_engineering import AdvancedFeatureExtractor
+
+        wide_names = AdvancedFeatureExtractor.get_feature_names()
+    except ImportError:  # pragma: no cover - 本仓内 feature_engineering 一定可导入
+        wide_names = []
+
+    if width == len(wide_names):
+        return list(wide_names)
+
+    return [f"feature_{i:02d}" for i in range(width)]
+
 
 class AIClusterSelector(ABC):
     """AI 簇头选择器基类"""
@@ -28,15 +68,8 @@ class AIClusterSelector(ABC):
         self.model: Any = None
         self.model_path = model_path
         self.is_trained = False
-        self.feature_names = [
-            "x",
-            "y",
-            "energy",
-            "energy_ratio",
-            "dist_to_bs",
-            "transmissions",
-            "receptions",
-        ]
+        # 未训练时的默认值（窄特征）。train() 会按实际训练宽度覆盖它。
+        self.feature_names: List[str] = list(NARROW_FEATURE_NAMES)
 
     @abstractmethod
     def predict(self, features: np.ndarray) -> np.ndarray:
@@ -172,6 +205,65 @@ class AIClusterSelector(ABC):
                 else np.array([]).reshape(0, len(self.feature_names) + 2)
             )
 
+    def _model_input_dim(self) -> Optional[int]:
+        """模型实际期望的输入宽度；无法确定时返回 None。
+
+        sklearn 模型有 n_features_in_；PyTorch 子类在 _ensure_model/_load_model 里
+        记录 input_dim。两者都拿不到，说明模型状态不完整 —— 由调用方决定怎么报错。
+        """
+        n_features = getattr(self.model, "n_features_in_", None)
+        if n_features is not None:
+            return int(n_features)
+
+        input_dim = getattr(self, "input_dim", None)
+        if input_dim is not None:
+            return int(input_dim)
+
+        return None
+
+    def _sync_feature_names(self, width: int) -> None:
+        """训练后按实际宽度重设特征名（否则 get_feature_importance 会错位）。"""
+        self.feature_names = feature_names_for_width(width)
+
+    def _feature_row(self, node: Node, network: Network) -> np.ndarray:
+        """按模型实际输入宽度取该节点的特征行（形状 (1, width)）。
+
+        宽度不匹配时直接报错，而不是把一个宽度不对的向量丢给模型 ——
+        后者只会以 "mat1 and mat2 shapes cannot be multiplied" 这类内部细节收场。
+        """
+        width = self._model_input_dim()
+        if width is None:
+            raise RuntimeError(
+                "无法确定模型期望的特征宽度（模型既没有 n_features_in_，也没有记录 input_dim）。"
+                "请用 train() 训练或加载本仓 _save_model 产出的模型文件。"
+            )
+
+        if len(self.feature_names) != width:
+            raise ValueError(
+                "特征名与模型输入宽度不一致：feature_names 有 %d 个，模型期望 %d 个。"
+                "该模型要么由旧版本保存（那时 feature_names 不随训练宽度更新），"
+                "要么是手工拼出来的。请用 train() 重新训练或重新导出模型。"
+                % (len(self.feature_names), width)
+            )
+
+        if width == len(NARROW_FEATURE_NAMES):
+            return np.asarray(node.get_features(network.base_station.position)).reshape(1, -1)
+
+        matrix = self._extract_features(network)
+        if matrix.ndim != 2 or matrix.shape[1] != width:
+            raise RuntimeError(
+                "特征提取器产出的宽度（%s）与模型期望的宽度（%d）不一致。"
+                % (matrix.shape[1] if matrix.ndim == 2 else "?", width)
+            )
+
+        for index, alive in enumerate(network.alive_nodes):
+            if alive.id == node.id:
+                return matrix[index : index + 1]
+
+        raise ValueError(
+            "节点 %s 不在 alive_nodes 里（已死亡或不属于该网络），无法解释其预测。" % node.id
+        )
+
     def explain_prediction(self, node: Node, network: Network) -> Dict[str, Any]:
         """
         解释为什么某个节点被选为簇头
@@ -186,16 +278,20 @@ class AIClusterSelector(ABC):
         if not self.is_trained:
             return {"error": "Model not trained"}
 
-        features = node.get_features(network.base_station.position).reshape(1, -1)
+        features = self._feature_row(node, network)
         prediction = self.predict(features)[0]
+
+        # 解释项按特征名取，不再按位置硬编码：位置索引只在窄特征布局下成立，
+        # 一旦模型按宽特征训练就会取错列（历史上的 shape 崩与错位都出在这里）。
+        explained: Dict[str, float] = {}
+        for name in ("energy_ratio", "dist_to_bs"):
+            if name in self.feature_names:
+                explained[name] = float(features[0][self.feature_names.index(name)])
 
         return {
             "node_id": node.id,
             "prediction_score": float(prediction),
-            "features": {
-                "energy_ratio": features[0][3],
-                "dist_to_bs": features[0][4],
-            },
+            "features": explained,
         }
 
     def evaluate(
