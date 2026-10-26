@@ -24,6 +24,32 @@ class FeatureStats:
     energy_histogram: np.ndarray = field(default_factory=lambda: np.array([]))
 
 
+# 19 维宽特征布局：顺序即列序。此前这条列表在本文件里手抄了两遍
+# （extract_features 的 feature_order 与 get_feature_names 的返回值），
+# 改一处漏一处不会有任何报错，只会让名字和值错位 —— 所以只留这一份。
+ADVANCED_FEATURE_NAMES: tuple[str, ...] = (
+    "x",
+    "y",
+    "dist_to_center",
+    "energy",
+    "energy_ratio",
+    "energy_zscore",
+    "energy_rank",
+    "dist_to_bs",
+    "dist_to_bs_normalized",
+    "neighbor_count_20",
+    "neighbor_count_40",
+    "neighbor_count_60",
+    "avg_neighbor_energy",
+    "max_neighbor_energy",
+    "total_transmissions",
+    "total_receptions",
+    "comm_load",
+    "is_near_bs",
+    "is_in_center",
+)
+
+
 class AdvancedFeatureExtractor:
     """高级特征提取器"""
 
@@ -125,29 +151,8 @@ class AdvancedFeatureExtractor:
         features["is_near_bs"] = 1.0 if node.distance_to(bs_pos) < 30 else 0.0
         features["is_in_center"] = 1.0 if dist_to_center < 25 else 0.0
 
-        feature_order = [
-            "x",
-            "y",
-            "dist_to_center",
-            "energy",
-            "energy_ratio",
-            "energy_zscore",
-            "energy_rank",
-            "dist_to_bs",
-            "dist_to_bs_normalized",
-            "neighbor_count_20",
-            "neighbor_count_40",
-            "neighbor_count_60",
-            "avg_neighbor_energy",
-            "max_neighbor_energy",
-            "total_transmissions",
-            "total_receptions",
-            "comm_load",
-            "is_near_bs",
-            "is_in_center",
-        ]
-
-        return np.array([features[k] for k in feature_order])
+        # 取值顺序与 get_feature_names() 同源，避免两份列表漂移（名字与值必须逐位对应）
+        return np.array([features[name] for name in self.get_feature_names()])
 
     def extract_batch(self, nodes: List[Node]) -> np.ndarray:
         """
@@ -161,29 +166,14 @@ class AdvancedFeatureExtractor:
         """
         return np.array([self.extract_features(node) for node in nodes])
 
-    def get_feature_names(self) -> List[str]:
-        """获取特征名称列表"""
-        return [
-            "x",
-            "y",
-            "dist_to_center",
-            "energy",
-            "energy_ratio",
-            "energy_zscore",
-            "energy_rank",
-            "dist_to_bs",
-            "dist_to_bs_normalized",
-            "neighbor_count_20",
-            "neighbor_count_40",
-            "neighbor_count_60",
-            "avg_neighbor_energy",
-            "max_neighbor_energy",
-            "total_transmissions",
-            "total_receptions",
-            "comm_load",
-            "is_near_bs",
-            "is_in_center",
-        ]
+    @staticmethod
+    def get_feature_names() -> List[str]:
+        """获取特征名称列表（顺序即 extract_features 的列序）。
+
+        做成静态方法：按宽度取名字的调用方（AIClusterSelector.feature_names_for_width）
+        手里没有 Network，不该为了拿一份名单去造一个提取器实例。
+        """
+        return list(ADVANCED_FEATURE_NAMES)
 
     def _get_neighbors_cached(self, node: Node, radius: float) -> List[Node]:
         """获取邻居（带缓存）"""

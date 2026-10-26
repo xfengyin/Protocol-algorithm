@@ -97,13 +97,28 @@ class SklearnClusterSelector(AIClusterSelector):
         # 训练
         self.model.fit(X_scaled, y, **kwargs)
         self.is_trained = True
+        # 名字必须跟着模型的实际输入宽度走，否则 get_feature_importance 会把重要性
+        # 贴到别的特征名下（zip 长度不等时静默截断）。
+        self._sync_feature_names(X.shape[1])
 
     def get_feature_importance(self) -> Dict[str, float]:
-        """获取特征重要性"""
+        """获取特征重要性。
+
+        名字数量与模型输入宽度不一致时**抛错**，不截断 —— 截断会把重要性静默贴到
+        错误的名字下：调用方拿到一张看起来正常、实际错位的表，比抛错危险得多。
+        """
         if not self.is_trained or not hasattr(self.model, "feature_importances_"):
             return {}
 
         importances = self.model.feature_importances_
+        if len(importances) != len(self.feature_names):
+            raise ValueError(
+                "特征名与模型输入宽度不一致：模型（%s）有 %d 个特征，feature_names 有 %d 个"
+                "（来源：AIClusterSelector.feature_names）。旧版本保存的模型文件会出现这种情况 —— "
+                "那时 feature_names 不随训练宽度更新。"
+                % (type(self.model).__name__, len(importances), len(self.feature_names))
+            )
+
         return {name: float(imp) for name, imp in zip(self.feature_names, importances)}
 
     def _save_model(self, path: Path):
@@ -135,6 +150,17 @@ class SklearnClusterSelector(AIClusterSelector):
         self.model = model_data["model"]
         self.scaler = model_data["scaler"]
         self.feature_names = model_data["feature_names"]
+
+        # 加载即校验：旧文件的 feature_names 固定是 7 个，模型却可能按 19 列训练；
+        # 这种文件继续用下去只会得到错位的重要性表，所以在这里就报错。
+        width = getattr(self.model, "n_features_in_", None)
+        if width is not None and int(width) != len(self.feature_names):
+            raise ValueError(
+                "模型文件不一致：模型按 %d 个特征训练，文件里记的 feature_names 却是 %d 个。"
+                "该文件由旧版本保存（那时 feature_names 不随训练宽度更新），请重新训练并保存。"
+                % (int(width), len(self.feature_names))
+            )
+        self._sync_feature_names(len(self.feature_names))
         # 兼容 2026-10-17 之前保存的模型文件：那时这个键叫 "model_type"。
         self.estimator = model_data.get("estimator", model_data.get("model_type"))
         if self.estimator is None:

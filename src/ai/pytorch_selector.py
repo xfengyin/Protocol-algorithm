@@ -70,12 +70,16 @@ class PyTorchClusterSelector(AIClusterSelector):
         self.model = None
         self.optimizer: Any = None
         self.criterion = nn.BCELoss()
+        # 模型实际输入宽度。get_feature_importance / explain_prediction 都按它取，
+        # 不再从 feature_names 反推（那份常量在旧版本里从不随训练宽度更新）。
+        self.input_dim: Optional[int] = None
 
     def _ensure_model(self, input_dim: int):
         """确保模型已初始化"""
         if self.model is None:
             self.model = MLPClassifier(input_dim, self.hidden_dims).to(self.device)
             self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.input_dim = input_dim
 
     def predict(self, features: np.ndarray) -> np.ndarray:
         """
@@ -137,6 +141,8 @@ class PyTorchClusterSelector(AIClusterSelector):
                 total_loss += loss.item()
 
         self.is_trained = True
+        # 名字跟着实际训练宽度走（同 sklearn 版本）。
+        self._sync_feature_names(X.shape[1])
 
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
         """预测概率（兼容接口）"""
@@ -147,10 +153,20 @@ class PyTorchClusterSelector(AIClusterSelector):
         if not self.is_trained or self.model is None:
             return {}
 
+        if self.input_dim is None:
+            return {}
+
+        if self.input_dim != len(self.feature_names):
+            raise ValueError(
+                "特征名与模型输入宽度不一致：模型输入 %d 维，feature_names 有 %d 个。"
+                "旧版本保存的模型文件会出现这种情况，请重新训练并保存。"
+                % (self.input_dim, len(self.feature_names))
+            )
+
         # 使用随机输入计算梯度作为重要性近似
         self.model.eval()
 
-        X = torch.randn(1, len(self.feature_names), requires_grad=True).to(self.device)
+        X = torch.randn(1, self.input_dim, requires_grad=True).to(self.device)
         output = self.model(X)
         output.backward()
 
@@ -179,7 +195,19 @@ class PyTorchClusterSelector(AIClusterSelector):
         self.learning_rate = checkpoint["learning_rate"]
         self.feature_names = checkpoint["feature_names"]
 
-        self.model = MLPClassifier(len(self.feature_names), self.hidden_dims).to(self.device)
+        # 宽度以 state_dict 为准，不拿 feature_names 当宽度来源 —— 旧文件里那份名字
+        # 固定 7 个，模型却可能按 19 列训练，照名字建网只会在 load_state_dict 处
+        # 抛 size mismatch，把内部细节甩给用户。
+        stored_dim = int(checkpoint["model_state_dict"]["network.0.weight"].shape[1])
+        if stored_dim != len(self.feature_names):
+            raise ValueError(
+                "模型文件不一致：网络输入 %d 维，文件里记的 feature_names 却有 %d 个。"
+                "该文件由旧版本保存（那时 feature_names 不随训练宽度更新），请重新训练并保存。"
+                % (stored_dim, len(self.feature_names))
+            )
+        self.input_dim = stored_dim
+
+        self.model = MLPClassifier(stored_dim, self.hidden_dims).to(self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
