@@ -827,7 +827,7 @@ AIClusterSelector(model_path: Optional[str] = None)
 | `model` | `Any` | 底层 ML 模型 |
 | `model_path` | `Optional[str]` | 模型路径 |
 | `is_trained` | `bool` | 是否已训练 |
-| `feature_names` | `List[str]` | 特征名称列表 |
+| `feature_names` | `List[str]` | 特征名称列表。**长度始终等于模型实际输入宽度**：`train()` 按训练数据的列数重设（7 → 窄特征名，19 → `AdvancedFeatureExtractor` 的名字，其它宽度 → `feature_00..` 占位名）；`load()` 会校验文件里的名字与模型宽度是否一致，不一致直接报错 |
 
 #### 抽象方法
 
@@ -846,7 +846,7 @@ AIClusterSelector(model_path: Optional[str] = None)
 | `_extract_features(network)` | `network: Network` | `np.ndarray` | 提取节点特征 |
 | `save(path)` | `path: Optional[str]` | `None` | 保存模型 |
 | `load(path)` | `path: Optional[str]` | `None` | 加载模型 |
-| `explain_prediction(node, network)` | `node: Node, network: Network` | `Dict[str, Any]` | 解释预测结果 |
+| `explain_prediction(node, network)` | `node: Node, network: Network` | `Dict[str, Any]` | 解释预测结果。按模型实际输入宽度取特征（7 维走 `Node.get_features`，19 维走 `_extract_features`，与 `select_cluster_heads` 同源）；宽度无法确定时抛 `RuntimeError`，宽度既非 7 也非 19 时抛错说明原因 |
 | `evaluate(X, y_true, threshold)` | `X: np.ndarray, y_true: np.ndarray, threshold: float = 0.5` | `Dict[str, float]` | 评估模型性能 |
 
 #### evaluate 返回值
@@ -989,6 +989,9 @@ trainer.load('models/ai_selector.pkl')
 ### 5.4 AdvancedFeatureExtractor
 
 高级特征提取器（19 维特征）。
+
+19 维的名字与顺序只在 `ADVANCED_FEATURE_NAMES` 定义一次：`extract_features` 按它取值、
+`get_feature_names()` 返回它。改顺序时只改这一处，名字与列不会错位。
 
 ```python
 from src.ai.feature_engineering import AdvancedFeatureExtractor

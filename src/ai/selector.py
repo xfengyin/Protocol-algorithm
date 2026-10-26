@@ -41,11 +41,11 @@ def feature_names_for_width(width: int) -> List[str]:
         return list(NARROW_FEATURE_NAMES)
 
     try:
-        from .feature_engineering import AdvancedFeatureExtractor
+        from .feature_engineering import ADVANCED_FEATURE_NAMES
 
-        wide_names = AdvancedFeatureExtractor.get_feature_names()
+        wide_names = ADVANCED_FEATURE_NAMES
     except ImportError:  # pragma: no cover - 本仓内 feature_engineering 一定可导入
-        wide_names = []
+        wide_names = ()
 
     if width == len(wide_names):
         return list(wide_names)

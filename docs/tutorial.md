@@ -468,7 +468,7 @@ network = Network(
 ```python
 from src.models.network import Network
 from src.ai.trainer import AITrainer
-from src.ai.selector import SklearnClusterSelector
+from src.ai.sklearn_selector import SklearnClusterSelector
 from examples.run_ai_leach import generate_training_data
 
 # 1. 生成训练数据（用传统 LEACH 仿真打标签 —— 真实实现就在这个函数里）
@@ -494,6 +494,21 @@ selector.load()
 # 在仿真中使用 AI 选择器
 # 注：需要将 AI 选择器集成到 Network 的 setup_phase 中
 ```
+
+> **注意特征宽度必须与模型一致。**
+> 上面 `generate_training_data` 产出的样本是 **9 维**（`Node.get_features` 的 7 维 + 邻居数 +
+> 到基站距离），模型就按 9 维训练；而 `select_cluster_heads` 走的是
+> `AdvancedFeatureExtractor` 的 **19 维**特征，把 9 维模型交给它会报
+> `X has 19 features, but ... is expecting 9 features`。
+>
+> 两条能跑通的路：
+> 1. 训练时就用 19 维特征：`X = selector._extract_features(network)`（与
+>    `select_cluster_heads` 完全同源），再 `selector.train(X, y)`；
+> 2. 训练时用 9 维，推理时也自己拼 9 维向量并调用 `selector.predict(X)`，
+>    不要走 `select_cluster_heads`。
+>
+> `explain_prediction` 会按模型的实际宽度选特征，宽度既不是 7 也不是 19 时直接报错
+> 说明原因，不会把一个宽度不对的向量丢给模型。
 
 ### 5.7 场景 7：生成可视化图表
 

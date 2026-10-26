@@ -31,6 +31,29 @@ def build_network(seed: int) -> Network:
     return network
 
 
+def test_feature_names_match_extract_order():
+    """19 维特征的名字与取值顺序必须同源（改一处漏一处会让名字和值错位）。
+
+    断言里刻意用 names.index(...) 去取列：如果只改了名字顺序、没改取值顺序，
+    这里会立刻红 —— 单看长度是发现不了的。
+    """
+    from src.ai.feature_engineering import ADVANCED_FEATURE_NAMES, AdvancedFeatureExtractor
+
+    network = build_network(seed=3)
+    extractor = AdvancedFeatureExtractor(network)
+    node = network.alive_nodes[0]
+    bs_pos = network.base_station.position
+
+    names = extractor.get_feature_names()
+    values = extractor.extract_features(node)
+
+    assert names == list(ADVANCED_FEATURE_NAMES)
+    assert len(names) == len(values) == 19
+    assert values[names.index("energy_ratio")] == pytest.approx(node.energy / node.initial_energy)
+    assert values[names.index("dist_to_bs")] == pytest.approx(node.distance_to(bs_pos))
+    assert values[names.index("energy")] == pytest.approx(node.energy)
+
+
 class TestSklearnClusterSelector:
     """Sklearn 簇头选择器测试"""
 
