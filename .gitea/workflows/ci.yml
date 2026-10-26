@@ -502,9 +502,16 @@ jobs:
           echo "Tests:         ${{ needs.test.result }}"
           echo "================================"
 
-          if [ "${{ needs.lint.result }}" = "failure" ] || \
-             [ "${{ needs.security.result }}" = "failure" ] || \
-             [ "${{ needs.test.result }}" = "failure" ]; then
+          # 只比较 failure 会把 cancelled / skipped / 未启动 当成通过。
+          # 实测（2026-10-27，临时仓 admin/ci-gate-probe，API 合并路径）：
+          #   · 必需 context 不存在   → 405 Not all required status checks successful（挡住）
+          #   · 必需 job 被取消       → status=failure → 405（挡住）
+          #   · 必需 job 被 skipped   → status=skipped，combined=success → **合并 200 成功**
+          # 即：skipped 满足必需检查。若只认 failure，「三个 job 全 skipped + 本 job 打印 PASSED」
+          # 就能让 PR 在什么都没跑的情况下合进 master。要求「每个 needs 都是 success」。
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.security.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ]; then
             echo "CI Pipeline FAILED"
             exit 1
           else
