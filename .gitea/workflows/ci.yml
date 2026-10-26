@@ -366,10 +366,16 @@ jobs:
         # 这条门禁第一次真实运行（run 10220 / task 1482）就红了，证明它真的会拦人：
         #   pytest 8.1.1      PYSEC-2026-1845  -> 升到 9.1.1（8.x 没有修复版）
         #   setuptools 79.0.1 PYSEC-2026-3447 -> 安装阶段改为 --upgrade setuptools
-        # 已知盲区（写在这里，免得被当成全覆盖）：带本地版本号的包会被 pip-audit 跳过 ——
-        # 实测 `torch 2.14.1+cpu` 报 "Dependency not found on PyPI and could not be audited"。
-        # 即 torch 的漏洞**不在**这条门禁的覆盖内；需要时补一次
-        # `pip-audit --disable-pip --no-deps -r requirements.txt`（按 PyPI 上的公开版本审计）。
+        # 已知盲区（写在这里，免得被当成全覆盖）：带本地版本号的包会出现在报告的 **Skip Reason** 列，
+        # 形如 `torch  Dependency not found on PyPI and could not be audited: torch (2.14.1+cpu)`。
+        # 2026-10-26 更正并实测（pip-audit 2.10.1，本机复刻同一个依赖集）：
+        #   * 那一行是**警告，不影响退出码**。同一环境里让 exit=1 的是 filelock 的三条 CVE；
+        #     把 CVE 修掉后同一环境 exit=0，Skip Reason 依旧照样打印。
+        #   * 换句话说：这条门禁**不会**因为 torch 的 +cpu 版本号而红；会让它红的是漏洞库新增条目
+        #     （filelock 3.32.3 → 4.2.1 就是这么红起来的，见 requirements.txt 末段）。
+        #   * torch 的漏洞确实不在覆盖内；要审它就补一次
+        #     `pip-audit --disable-pip --no-deps -r requirements.txt`（按 PyPI 上的公开版本号审）。
+        # 教训：把「已知盲区」写进注释时必须连**退出码**一起实测，否则「跳过」和「报错」在注释里长得一样。
         if: matrix.python-version == '3.11'
         run: |
           .venv/bin/pip-audit --progress-spinner=off --timeout=30

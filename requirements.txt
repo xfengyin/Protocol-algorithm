@@ -1,4 +1,6 @@
 # 直接依赖（CI 的 test job 装的就是这一份；与 pyproject.toml 的 [project.dependencies] 保持一致）
+# 唯一的例外是文末「传递依赖的安全下限」一段：那一项不是本仓的直接 import，
+# 因此 pyproject.toml 里不重复声明（同一件事只留一处真相源）。
 #
 # 收窄依据：每条依赖都必须有真实的 import 使用者，判据是
 #   git ls-files '*.py' | xargs grep -nE '^\s*(import|from) <包名>(\.|\s|,|$)'
@@ -23,3 +25,16 @@ scipy>=1.11.0
 torch>=2.14.0
 pytest>=7.4.4
 pytest-cov>=4.1.0
+
+# --- 传递依赖的安全下限（不是本仓的直接 import，pyproject.toml 不重复声明）---------
+# 为什么直接钉下限、而不是等 torch 升级：
+#   * torch 2.14.1 对 filelock 没有上界（METADATA 里就是裸的 "Requires-Dist: filelock"），
+#     所以这不是 torch 的版本选择问题，是解析到什么算什么；
+#   * CI 用 `pip install torch --index-url https://download.pytorch.org/whl/cpu` 装 torch，
+#     而那个索引里 filelock 最高只到 3.32.3（实测 pip 就在那里封顶），于是 CI 每次都是 3.32.3；
+#   * 漏洞库 2026-10-26 新增 CVE-2026-112907 / 112913 / 112940（修复版本 4.2.1）之后，
+#     依赖审计门禁对**任何** commit 都红 —— 包括 revert 掉别人的改动。
+#     等 torch 发新版把这几条消掉，等于把主分支的绿挂在上游发布时间上。
+# 效果：CI 装完 torch 后再执行本文件，filelock 被升到 4.2.4（PyPI 当前最新），
+# torch 本身不需要重装（它对该包没有上界）。本项**不是** import 依赖，只是安全下限。
+filelock>=4.2.1
