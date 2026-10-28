@@ -36,9 +36,14 @@ def test_benchmark_result_shape_and_no_baked_numbers() -> None:
     assert len(rows) == 1
     row = rows[0]
     for key in (
-        "node_count", "rounds", "repeats",
-        "serial_seconds", "threads_seconds", "processes_seconds",
-        "serial_over_threads", "serial_over_processes",
+        "node_count",
+        "rounds",
+        "repeats",
+        "serial_seconds",
+        "threads_seconds",
+        "processes_seconds",
+        "serial_over_threads",
+        "serial_over_processes",
     ):
         assert key in row
     assert row["node_count"] == 20.0 and row["rounds"] == 3.0 and row["repeats"] == 2.0
@@ -99,7 +104,10 @@ CORE_MODULES = [
 def _heavy_modules_pulled_by(module: str) -> list[str]:
     result = subprocess.run(
         [sys.executable, "-c", _PROBE, module],
-        cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, f"子进程导入 {module} 失败：\n{result.stderr}"
     parsed: list[str] = json.loads(result.stdout)
@@ -116,4 +124,6 @@ def test_core_modules_do_not_import_heavy_optional_libs(module: str) -> None:
 def test_guard_is_not_vacuous() -> None:
     """负对照：证明这个探针真的能发现问题——导入明确依赖 matplotlib 的模块，必须报告出来。"""
     leaked = _heavy_modules_pulled_by("src.visualization.comparison")
-    assert any(m.startswith("matplotlib") for m in leaked), "探针对已知依赖 matplotlib 的模块也没报告，护栏会空转"
+    assert any(
+        m.startswith("matplotlib") for m in leaked
+    ), "探针对已知依赖 matplotlib 的模块也没报告，护栏会空转"

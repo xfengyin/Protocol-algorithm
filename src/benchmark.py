@@ -83,7 +83,9 @@ def benchmark(
                 "serial_over_processes": serial / processes if processes else 0.0,
             }
         )
-        logger.info("节点数 %s：串行 %.4fs，线程池 %.4fs，进程池 %.4fs", n_nodes, serial, threads, processes)
+        logger.info(
+            "节点数 %s：串行 %.4fs，线程池 %.4fs，进程池 %.4fs", n_nodes, serial, threads, processes
+        )
     return results
 
 
