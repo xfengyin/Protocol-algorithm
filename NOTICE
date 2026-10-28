@@ -1,0 +1,9 @@
+Protocol-algorithm
+Copyright (c) 2026 xfengyin
+
+This repository absorbed ideas and tests from the former LEACH repository
+(Copyright (c) 2026 LEACH Protocol Project, MIT licence), final state tagged `final-before-merge`:
+  - the sync/async benchmark idea (re-implemented here against this repository's own Network API,
+    comparing serial / thread pool / process pool because this repository has no async path)
+  - the import-isolation guard (re-implemented for this repository's module layout)
+No algorithm code was copied: this repository already contained a superset implementation.

@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added
+- `src/benchmark.py`: serial vs thread-pool vs process-pool timing over the same simulation config
+  (merged from the former LEACH repository, adapted to this API; no baked-in numbers).
+- `tests/test_benchmark_merged.py`: reproducibility across execution modes, result-shape checks, and an
+  import-isolation guard with a negative control so it cannot pass vacuously.
+- `NOTICE`: provenance of the merged material.
+
+### Fixed
+- CI: `security` now `needs: [lint]`. Both jobs started within ~6s and cloned the same cached `setup-python`
+  action directory; the loser failed `Set up Python` with `lstat .../.prettierrc.js: no such file`.
+  History: 4 of 136 `Set up Python` steps failed, all 4 in `Code Quality Check` (4/36; Security 0/34, Test 0/66).
+- Circular import: `import src.leach.classic` (or `src.leach`) as the first import raised
+  `ImportError: cannot import name 'ClassicLEACH' from partially initialized module`, because
+  `models.network` imported `leach.variants` at module level while `leach.*` imports `models.*`.
+  `LEACHRegistry` is now imported lazily inside `Network.__init__`. Found by the new import-isolation
+  guard; existing tests never hit it because they all import `src.models.network` first.
+
+
 （三轮未发布改动：2026-10-14 的代码修复轮 + 2026-10-15 的门禁加固轮 + 2026-10-17 的单一真相源轮）
 
 ### Removed (2026-10-17)
