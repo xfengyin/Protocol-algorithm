@@ -9,7 +9,6 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from ..energy.radio_model import FirstOrderRadioModel
-from ..leach.variants import LEACHRegistry
 from .base_station import BaseStation
 from .cluster_head import ClusterHead
 from .node import Node, NodeRole
@@ -91,6 +90,11 @@ class Network:
         self.cluster_heads: List[ClusterHead] = []
         self.current_round = 0
         self.metrics_history: List[NetworkMetrics] = []
+
+        # 延迟导入：src.leach.* 反过来依赖 src.models（ClusterHead 等），模块级导入会形成
+        # models.network -> leach.variants -> leach.classic -> models.cluster_head
+        # -> models/__init__ -> models.network 的环。先导入 src.leach.classic 会 ImportError。
+        from ..leach.variants import LEACHRegistry
 
         self._protocol_registry = LEACHRegistry()
 

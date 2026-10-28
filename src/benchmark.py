@@ -90,13 +90,15 @@ def benchmark(
 def format_table(results: List[Dict[str, float]]) -> str:
     lines = [
         "执行方式耗时对比（同一组仿真配置，只改执行方式）",
-        f"{'nodes':>7} {'rounds':>7} {'serial_s':>10} {'threads_s':>10} {'procs_s':>10} {'s/thr':>7} {'s/proc':>7}",
+        f"{'nodes':>7} {'rounds':>7} {'serial_s':>10} {'threads_s':>10} "
+        f"{'procs_s':>10} {'s/thr':>7} {'s/proc':>7}",
         "-" * 66,
     ]
     for row in results:
         lines.append(
             f"{int(row['node_count']):>7} {int(row['rounds']):>7} "
-            f"{row['serial_seconds']:>10.4f} {row['threads_seconds']:>10.4f} {row['processes_seconds']:>10.4f} "
+            f"{row['serial_seconds']:>10.4f} {row['threads_seconds']:>10.4f} "
+            f"{row['processes_seconds']:>10.4f} "
             f"{row['serial_over_threads']:>7.2f} {row['serial_over_processes']:>7.2f}"
         )
     return "\n".join(lines)
@@ -105,7 +107,11 @@ def format_table(results: List[Dict[str, float]]) -> str:
 def main(argv: Optional[Sequence[str]] = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="串行 / 线程池 / 进程池 执行方式基准对比")
-    parser.add_argument("--nodes", default=",".join(str(c) for c in DEFAULT_NODE_COUNTS), help="逗号分隔的节点数")
+    parser.add_argument(
+        "--nodes",
+        default=",".join(str(c) for c in DEFAULT_NODE_COUNTS),
+        help="逗号分隔的节点数",
+    )
     parser.add_argument("--rounds", type=int, default=DEFAULT_ROUNDS, help="每次仿真跑多少轮")
     parser.add_argument("--repeats", type=int, default=4, help="每档重复仿真次数（不同随机种子）")
     parser.add_argument("--workers", type=int, default=2, help="池的并发数")

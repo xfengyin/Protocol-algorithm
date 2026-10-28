@@ -9,6 +9,13 @@
   import-isolation guard with a negative control so it cannot pass vacuously.
 - `NOTICE`: provenance of the merged material.
 
+### Fixed
+- Circular import: `import src.leach.classic` (or `src.leach`) as the first import raised
+  `ImportError: cannot import name 'ClassicLEACH' from partially initialized module`, because
+  `models.network` imported `leach.variants` at module level while `leach.*` imports `models.*`.
+  `LEACHRegistry` is now imported lazily inside `Network.__init__`. Found by the new import-isolation
+  guard; existing tests never hit it because they all import `src.models.network` first.
+
 
 （三轮未发布改动：2026-10-14 的代码修复轮 + 2026-10-15 的门禁加固轮 + 2026-10-17 的单一真相源轮）
 

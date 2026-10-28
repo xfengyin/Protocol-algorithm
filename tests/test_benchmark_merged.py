@@ -44,14 +44,26 @@ def test_benchmark_result_shape_and_no_baked_numbers() -> None:
     assert row["node_count"] == 20.0 and row["rounds"] == 3.0 and row["repeats"] == 2.0
     # 耗时必须是真测出来的正数，比值与耗时自洽（不预置数字）。
     assert row["serial_seconds"] > 0 and row["threads_seconds"] > 0 and row["processes_seconds"] > 0
-    assert row["serial_over_threads"] == pytest.approx(row["serial_seconds"] / row["threads_seconds"])
-    assert row["serial_over_processes"] == pytest.approx(row["serial_seconds"] / row["processes_seconds"])
+    assert row["serial_over_threads"] == pytest.approx(
+        row["serial_seconds"] / row["threads_seconds"]
+    )
+    assert row["serial_over_processes"] == pytest.approx(
+        row["serial_seconds"] / row["processes_seconds"]
+    )
 
 
 def test_format_table_has_header_and_one_line_per_row() -> None:
     rows = [
-        {"node_count": 20.0, "rounds": 3.0, "repeats": 2.0, "serial_seconds": 1.0, "threads_seconds": 2.0,
-         "processes_seconds": 0.5, "serial_over_threads": 0.5, "serial_over_processes": 2.0}
+        {
+            "node_count": 20.0,
+            "rounds": 3.0,
+            "repeats": 2.0,
+            "serial_seconds": 1.0,
+            "threads_seconds": 2.0,
+            "processes_seconds": 0.5,
+            "serial_over_threads": 0.5,
+            "serial_over_processes": 2.0,
+        }
     ]
     text = benchmark.format_table(rows)
     lines = text.splitlines()
