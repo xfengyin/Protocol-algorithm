@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- `src/benchmark.py`: serial vs thread-pool vs process-pool timing over the same simulation config
+  (merged from the former LEACH repository, adapted to this API; no baked-in numbers).
+- `tests/test_benchmark_merged.py`: reproducibility across execution modes, result-shape checks, and an
+  import-isolation guard with a negative control so it cannot pass vacuously.
+- `NOTICE`: provenance of the merged material.
+
+
 （三轮未发布改动：2026-10-14 的代码修复轮 + 2026-10-15 的门禁加固轮 + 2026-10-17 的单一真相源轮）
 
 ### Removed (2026-10-17)
