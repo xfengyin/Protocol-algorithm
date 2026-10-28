@@ -10,6 +10,9 @@
 - `NOTICE`: provenance of the merged material.
 
 ### Fixed
+- CI: `security` now `needs: [lint]`. Both jobs started within ~6s and cloned the same cached `setup-python`
+  action directory; the loser failed `Set up Python` with `lstat .../.prettierrc.js: no such file`.
+  History: 4 of 136 `Set up Python` steps failed, all 4 in `Code Quality Check` (4/36; Security 0/34, Test 0/66).
 - Circular import: `import src.leach.classic` (or `src.leach`) as the first import raised
   `ImportError: cannot import name 'ClassicLEACH' from partially initialized module`, because
   `models.network` imported `leach.variants` at module level while `leach.*` imports `models.*`.

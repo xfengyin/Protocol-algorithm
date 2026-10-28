@@ -136,6 +136,11 @@ jobs:
     name: Security Scan
     runs-on: amd64
     timeout-minutes: 10
+    # lint 与 security 之前并发启动，两者几乎同一秒去 checkout 同一个 setup-python 的 action 缓存克隆
+    # （act_runner 缓存键是 (仓库, ref)，同一目录）。act 的 checkout 会先删后建文件，另一个 job 的 lstat
+    # 恰好落在窗口里就报 "lstat …/.prettierrc.js: no such file or directory"。2026-10-29 同一 PR 上
+    # 三次运行出现两次，受害者都是先抢到的 lint。串行化只多花一个 job 的时间，却去掉了这个窗口。
+    needs: [lint]
 
     steps:
       - name: Checkout code
