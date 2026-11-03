@@ -53,7 +53,7 @@
 
 ### 分支 + Pull Request 流程
 
-> **本项目的唯一真相源是 Gitea**：`http://192.168.31.101:3100/admin/Protocol-algorithm`。
+> **本项目的唯一真相源是 Gitea**：`<你的内网 Gitea 地址>/Protocol-algorithm`。
 > GitHub 上的 `xfengyin/Protocol-algorithm` 只是 Gitea 的 **push mirror**：
 > **只读、不跑 Actions、不接受 PR 与 Issue**。所以**不要**去 GitHub fork / 开 PR / 提问 ——
 > 在那里做的任何事都不会进入本项目，既不会被 CI 检查、也不会被合并。
@@ -62,7 +62,7 @@
 1. **克隆仓库**（有写权限就直接在原仓开分支，本仓是单人项目，**不需要 fork**）
 
    ```bash
-   git clone http://192.168.31.101:3100/admin/Protocol-algorithm.git
+   git clone <你的内网 Gitea 地址>/Protocol-algorithm.git
    cd Protocol-algorithm
    ```
 
@@ -131,7 +131,7 @@
 
 6. **创建 Pull Request**
 
-   - 在 Gitea 上打开 `http://192.168.31.101:3100/admin/Protocol-algorithm/pulls`，
+   - 在 Gitea 上打开 `<你的内网 Gitea 地址>/Protocol-algorithm/pulls`，
      点 **New Pull Request**，base 选 `master`、compare 选你的分支
      （刚推完分支时，命令行回显里也会直接给出创建链接）
    - 描述变更内容与测试情况
@@ -760,7 +760,7 @@ python -m timeit -n 100 "from src.leach.classic import ClassicLEACH; ..."
 
 ## 如何报告 Bug
 
-使用 Gitea Issues 报告 Bug（`http://192.168.31.101:3100/admin/Protocol-algorithm/issues`），请遵循以下模板：
+使用 Gitea Issues 报告 Bug（`<你的内网 Gitea 地址>/Protocol-algorithm/issues`），请遵循以下模板：
 
 ### Bug 报告模板
 
@@ -940,7 +940,7 @@ protocol-algorithm/
 1. **更新版本号**（`pyproject.toml`）
 2. **更新 CHANGELOG.md**
 3. **创建 Git Tag**
-4. **发布 Gitea Release**（`http://192.168.31.101:3100/admin/Protocol-algorithm/releases`）
+4. **发布 Gitea Release**（`<你的内网 Gitea 地址>/Protocol-algorithm/releases`）
 
 ```bash
 # 打标签
@@ -953,9 +953,9 @@ git push origin v1.1.0
 ## 联系方式
 
 - **Gitea Issues**（唯一有效的跟踪入口）:
-  [报告 Bug / 提出功能](http://192.168.31.101:3100/admin/Protocol-algorithm/issues)
+  [报告 Bug / 提出功能](<你的内网 Gitea 地址>/Protocol-algorithm/issues)
   —— GitHub 侧是只读 mirror，**不开 Issue**，写在那里没人看得到
-- **Pull Request**: `http://192.168.31.101:3100/admin/Protocol-algorithm/pulls`
+- **Pull Request**: `<你的内网 Gitea 地址>/Protocol-algorithm/pulls`
 
 ---
 
