@@ -117,12 +117,22 @@ class ComparisonPlotter:
             alive = np.array(results["alive_nodes"])
             rounds = np.array(results["rounds"])
 
-            first_dead = np.argmax(alive < alive[0] + alive[0])
-            if alive[first_dead] == alive[0] + alive[0]:
+            # 2026-11-04 修：这里原来写的是 `alive[0] + alive[0]`（即 2*alive[0]），
+            # 于是两个条件对第 0 个元素都为真、`np.argmax` 恒返回 0 ——
+            # 「性能指标对比」图上的 First Dead 与 Half Dead **恒为 0**。
+            # 正确语义：
+            #   first_dead = 第一个「存活数低于初始值」的轮次；
+            #   half_dead  = 第一个「存活数 <= 初始值一半」的轮次。
+            # 全程没发生时用总轮数作哨兵值（与下面 `results.get(..., len(alive))` 的约定一致）。
+            initial = alive[0]
+
+            first_dead = int(np.argmax(alive < initial))
+            if alive[first_dead] >= initial:
+                # argmax 在「没有任何元素满足条件」时返回 0，必须显式区分「第 0 轮就死」与「没死过」。
                 first_dead = len(alive)
 
-            half_dead = np.argmax(alive <= (alive[0] + alive[0]) / 2)
-            if alive[half_dead] > (alive[0] + alive[0]) / 2:
+            half_dead = int(np.argmax(alive <= initial / 2))
+            if alive[half_dead] > initial / 2:
                 half_dead = len(alive)
 
             metrics.append(
