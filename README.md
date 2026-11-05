@@ -17,23 +17,23 @@
 
 ### 架构组织图
 
-![项目架构图](https://mdn.alipayobjects.com/one_clip/afts/img/f9-dT6LguPgAAAAAUeAAAAgAoEACAQFr/original)
+![项目架构图](docs/diagrams/architecture.jpg)
 
 ### 功能思维导图
 
-![功能思维导图](https://mdn.alipayobjects.com/one_clip/afts/img/ymeBQJPJmhgAAAAAXGAAAAgAoEACAQFr/original)
+![功能思维导图](docs/diagrams/mindmap.jpg)
 
 ### 仿真流程图
 
-![仿真流程图](https://mdn.alipayobjects.com/one_clip/afts/img/F-t_RpWxOl0AAAAARPAAAAgAoEACAQFr/original)
+![仿真流程图](docs/diagrams/flowchart.jpg)
 
 ### 项目质量雷达图
 
-![质量雷达图](https://mdn.alipayobjects.com/one_clip/afts/img/jHpGS48zG70AAAAAUeAAAAgAoEACAQFr/original)
+![质量雷达图](docs/diagrams/radar.jpg)
 
 ### 技术栈构成
 
-![技术栈饼图](https://mdn.alipayobjects.com/one_clip/afts/img/SKFmSbyXDasAAAAASBAAAAgAoEACAQFr/original)
+![技术栈饼图](docs/diagrams/techstack.jpg)
 
 ## 安装
 
