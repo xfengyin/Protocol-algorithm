@@ -1,0 +1,15 @@
+# CODEOWNERS —— 代码评审归属
+# 格式：<路径模式> <@用户或团队>
+# 路径模式同 .gitignore（最后一条匹配生效；* 不跨 /）。
+
+# 默认：所有文件由 admin 评审
+* @admin
+
+# CI 与流水线（改动 CI 必须额外评审）
+.gitea/workflows/    @admin
+.github/workflows/   @admin
+
+# 构建与发布
+Makefile             @admin
+Dockerfile*          @admin
+docker/              @admin
