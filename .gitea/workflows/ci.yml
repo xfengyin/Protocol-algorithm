@@ -492,7 +492,14 @@ jobs:
     # NAS 只有 2 个槽位，被别的仓的重活（picoclaw 构建/集成测试）占着，而板上槽位空着。
     # 搬到 lite：不需要 x86，上下文名与 runner 无关（仍是 CI Pipeline / CI Summary (…)），
     # 所以 gate-integrity.py 的声明与分支保护的必需检查都不受影响。
-    runs-on: lite
+    #
+    # 2026-11-12 改回 amd64：带 `lite` 标签的 runner（id=3 opi-runner-1，OrangePi）
+    # 已于 2026-11-10 18:27 从本 Gitea 注销。于是这个 job 永远排不上 ——
+    # run 11263 从 18:00 一直 waiting 到 20:40，而它是**必需检查**，
+    # 直接导致任何 PR 都合不了。上面那段"NAS 排队 25 分钟"的代价固然真实，
+    # 但"永远不合"比"慢"更糟。
+    # 若要恢复板上执行：先把 OrangePi 的 act_runner 重新注册，再把这里改回 lite。
+    runs-on: amd64
     if: always()
     timeout-minutes: 5
 
