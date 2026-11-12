@@ -2,6 +2,14 @@
 
 无线传感器网络（WSN）中 LEACH 协议的仿真与 AI 优化平台。
 
+> **状态：本仓是 Python 原实现，已由 [protocol-algorithm-go](http://<NAS-LAN-IP>:3100/admin/protocol-algorithm-go)（Go 全量重写）接替。**
+> `master` 最后提交是 2026-11-10，之后的提交只有文档与 CODEOWNERS；`src/`、`tests/`、
+> `examples/`、`cli.py`、`main.py` 与对齐基准提交 `1796018`（2026-11-05）逐字节相同。
+> 本仓**不再维护**：要跑仿真、要改算法，请去 Go 版。
+>
+> 注意 Gitea 上本仓的 `archived` 标志仍是 `false`——本仓**没有**被归档，能推、能开 PR、
+> 能打 tag，只是没有人在接。把「不再维护」当成「已归档」会让人误以为这里只读。
+
 ## 功能特性
 
 - **多 LEACH 变体**：经典 LEACH、LEACH-C、LEACH-EE、LEACH-M
