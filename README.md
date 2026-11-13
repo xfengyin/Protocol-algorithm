@@ -1,3 +1,9 @@
+> ⚠️ **已归档 / Archived (2026-11-13)**
+> 本仓库已被取代，只读保留，不再接受 issue/PR。
+> 直接继任：admin/protocol-algorithm-go（当前维护）
+> 当前维护版本：admin/protocol-algorithm-go
+> 取代原因：该实现已由当前维护的 Go 版本取代。
+
 > 前身：admin/LEACH（已归档 2026-11-13）
 
 # Protocol-algorithm - LEACH协议仿真与AI优化平台
