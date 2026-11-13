@@ -1,3 +1,5 @@
+> 前身：admin/LEACH（已归档 2026-11-13）
+
 # Protocol-algorithm - LEACH协议仿真与AI优化平台
 
 无线传感器网络（WSN）中 LEACH 协议的仿真与 AI 优化平台。
